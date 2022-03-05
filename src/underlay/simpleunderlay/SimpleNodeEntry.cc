@@ -140,8 +140,11 @@ SimpleNodeEntry::SimpleNodeEntry(cModule* node,
     tx.maxQueueTime = (sendQueueLength * 8.0) / tx.bandwidth;
     tx.finished = 0;
 
-    delete tempRx;
-    delete tempTx;
+    // These two lines throw an error on execution
+    // delete tempRx;
+    // delete tempTx;
+    tempRx->setDisabled(true);
+    tempTx->setDisabled(true);
 }
 
 float SimpleNodeEntry::operator-(const SimpleNodeEntry& entry) const
