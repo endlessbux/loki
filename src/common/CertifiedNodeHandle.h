@@ -8,7 +8,7 @@
 
 class CertifiedNodeHandle : public NodeHandle {
     protected:
-        certificate* ownCertificate;     // certificate belonging to this node
+        certificate* cert;     // certificate belonging to this node
 
     public:
         /**
