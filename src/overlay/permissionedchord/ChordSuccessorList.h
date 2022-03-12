@@ -36,7 +36,7 @@ class OverlayKey;
 namespace loki {
 
 class NotifyResponse;
-class Chord;
+class PermissionedChord;
 
 struct SuccessorListEntry
 {
@@ -73,7 +73,7 @@ class ChordSuccessorList : public cSimpleModule
      * @param overlay pointer to the main chord module
      */
     virtual void initializeList(uint32_t size, NodeHandle owner,
-	Chord* overlay);
+	PermissionedChord* overlay);
 
     /**
      * Returns number of neighbors in the successor list
@@ -123,7 +123,7 @@ class ChordSuccessorList : public cSimpleModule
 
     uint32_t successorListSize; /**< maximum size of the successor list */
 
-    Chord* overlay; /**< pointer to the main chord module */
+    PermissionedChord* overlay; /**< pointer to the main chord module */
 
     void removeOldSuccessors();
 

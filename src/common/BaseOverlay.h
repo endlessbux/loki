@@ -83,16 +83,17 @@ public:
     virtual ~BaseOverlay();
 
     enum States {
-        INIT      = 0,
-        BOOTSTRAP = 1,
-        DISCOVERY = 2,
-        PREJOIN   = 3,
-        JOIN      = 4,
-        POSTJOIN  = 5,
-        READY     = 6,
-        REFRESH   = 7,
-        SHUTDOWN  = 8,
-        FAILED    = 9,
+        INIT            = 0,
+        BOOTSTRAP       = 1,
+        DISCOVERY       = 2,
+        PREJOIN         = 3,
+        JOIN            = 4,
+        POSTJOIN        = 5,
+        READY           = 6,
+        REFRESH         = 7,
+        SHUTDOWN        = 8,
+        FAILED          = 9,
+        REGISTRATION    = 10,
 
         //some aliases for compatibility
         RSET      = JOIN,

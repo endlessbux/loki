@@ -25,7 +25,7 @@
 
 #include "overlay/permissionedchord/ChordSuccessorList.h"
 
-#include "overlay/permissionedchord/Chord.h"
+#include "PermissionedChord.h"
 
 namespace loki {
 
@@ -55,7 +55,7 @@ void ChordSuccessorList::handleMessage(cMessage* msg)
 }
 
 void ChordSuccessorList::initializeList(uint32_t size, NodeHandle owner,
-                                        Chord *overlay)
+                                        PermissionedChord *overlay)
 {
     successorMap.clear();
     successorListSize = size;

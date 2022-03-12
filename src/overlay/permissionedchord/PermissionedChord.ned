@@ -22,17 +22,17 @@ import oversim.common.BaseOverlay;
 import oversim.common.IOverlay;
 
 
-@namespace(oversim);
+@namespace(loki);
 
 //
 // The main module of the Chord implementation
 //
 // @author Ingmar Baumgart, Markus Mauch
 //
-simple Chord extends BaseOverlay
+simple PermissionedChord extends BaseOverlay
 {
     parameters:
-        @class(Chord);
+        @class(PermissionedChord);
         volatile int successorListSize; // max number of successors in the SuccessorList
         // after joinRetry unsuccessful join requests, we fetch
         // a need bootstrap node from the GlobalNodeList
@@ -97,7 +97,7 @@ module ChordModules like IOverlay
         output appOut;    // gate to the application
 
     submodules:
-        chord: Chord {
+        chord: PermissionedChord {
             parameters:
                 @display("p=60,60");
 

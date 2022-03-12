@@ -21,11 +21,12 @@
  * @author Markus Mauch, Ingmar Baumgart
  */
 
-#ifndef __CHORD_H_
-#define __CHORD_H_
+#ifndef __PERMISSIONEDCHORD_H_
+#define __PERMISSIONEDCHORD_H_
 
 #include "common/BaseOverlay.h"
 #include "common/NeighborCache.h"
+#include "common/certificate.h"
 
 #include "overlay/permissionedchord/ChordMessage_m.h"
 
@@ -44,11 +45,13 @@ class ChordFingerTable;
  * @author Markus Mauch, Ingmar Baumgart
  * @see BaseOverlay, ChordFingerTable, ChordSuccessorList
  */
-class Chord : public BaseOverlay, public ProxListener
+class PermissionedChord : public BaseOverlay, public ProxListener
 {
 public:
-    Chord();
-    virtual ~Chord();
+    certificate cert;
+
+    PermissionedChord();
+    virtual ~PermissionedChord();
 
     // see BaseOverlay.h
     virtual void initializeOverlay(int stage);
@@ -99,6 +102,7 @@ protected:
 
 
     // timer messages
+    cMessage* registration_timer; /**< */
     cMessage* join_timer; /**< */
     cMessage* stabilize_timer; /**< */
     cMessage* fixfingers_timer; /**< */
@@ -128,14 +132,21 @@ protected:
 
     // node references
     NodeHandle predecessorNode; /**< predecessor of this node */
+    TransportAddress certificateAuthority;
     TransportAddress bootstrapNode; /**< node used to bootstrap */
 
     // module references
     ChordFingerTable* fingerTable; /**< pointer to this node's finger table */
     ChordSuccessorList* successorList; /**< pointer to this node's successor list */
 
-    // chord routines
+    /**
+     * handle an expired registration timer
+     *
+     * @param msg the timer self-message
+     */
+    virtual void handleRegistrationTimerExpired(cMessage* msg);
 
+    // chord routines
     /**
      * handle a expired join timer
      *
@@ -260,6 +271,7 @@ protected:
                              int rpcId);
 
     virtual void handleRpcJoinResponse(JoinResponse* joinResponse);
+    virtual void handleRpcRegistrationResponse(RegistrationResponse* registrationResponse);
     virtual void handleRpcNotifyResponse(NotifyResponse* notifyResponse);
     virtual void handleRpcStabilizeResponse(StabilizeResponse* stabilizeResponse);
     virtual void handleRpcFixfingersResponse(FixfingersResponse* fixfingersResponse,

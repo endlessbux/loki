@@ -25,9 +25,9 @@
 
 #include "common/hashWatch.h"
 
-#include "overlay/permissionedchord/Chord.h"
 #include "overlay/permissionedchord/ChordSuccessorList.h"
 #include "overlay/permissionedchord/ChordFingerTable.h"
+#include "PermissionedChord.h"
 
 namespace loki {
 
@@ -53,7 +53,7 @@ void ChordFingerTable::handleMessage(cMessage* msg)
 }
 
 void ChordFingerTable::initializeTable(uint32_t size, const NodeHandle& owner,
-                                       Chord* overlay)
+                                       PermissionedChord* overlay)
 {
     maxSize = size;
     this->overlay = overlay;

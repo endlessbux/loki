@@ -21,31 +21,34 @@
  * @author Markus Mauch, Ingmar Baumgart
  */
 
+#include "PermissionedChord.h"
+
 #include "common/GlobalStatistics.h"
 #include "common/Comparator.h"
 #include "common/BootstrapList.h"
 #include "common/GlobalParameters.h"
 #include "common/NeighborCache.h"
+#include "common/certificate.h"
 
+#include "overlay/permissionedchord/Conductor.h"
 #include "overlay/permissionedchord/ChordFingerTable.h"
 #include "overlay/permissionedchord/ChordSuccessorList.h"
 
-#include "overlay/permissionedchord/Chord.h"
 
 namespace loki {
 
 using namespace std;
 
-Define_Module(Chord);
+Define_Module(PermissionedChord);
 
-Chord::Chord()
+PermissionedChord::PermissionedChord()
 {
     stabilize_timer = fixfingers_timer = join_timer = NULL;
     fingerTable = NULL;
 }
 
 
-void Chord::initializeOverlay(int stage)
+void PermissionedChord::initializeOverlay(int stage)
 {
     // because of L3AddressResolver, we need to wait until interfaces
     // are registered, address auto-assignment takes place etc.
@@ -109,16 +112,21 @@ void Chord::initializeOverlay(int stage)
     WATCH(missingPredecessorStabRequests);
 
     // self-messages
+    registration_timer = new cMessage("registration_timer");
     join_timer = new cMessage("join_timer");
     stabilize_timer = new cMessage("stabilize_timer");
     fixfingers_timer = new cMessage("fixfingers_timer");
     checkPredecessor_timer = new cMessage("checkPredecessor_timer");
+
+    // get certificate authority
+    certificateAuthority = Conductor::networkController;
 }
 
 
-Chord::~Chord()
+PermissionedChord::~PermissionedChord()
 {
     // destroy self timer messages
+    cancelAndDelete(registration_timer);
     cancelAndDelete(join_timer);
     cancelAndDelete(stabilize_timer);
     cancelAndDelete(fixfingers_timer);
@@ -127,14 +135,15 @@ Chord::~Chord()
 
 
 
-void Chord::joinOverlay()
+void PermissionedChord::joinOverlay()
 {
     changeState(INIT);
-    changeState(JOIN);
+    changeState(REGISTRATION);
+    //changeState(JOIN);
 }
 
 
-void Chord::joinForeignPartition(const NodeHandle &node)
+void PermissionedChord::joinForeignPartition(const NodeHandle &node)
 {
     Enter_Method_Silent();
 
@@ -151,12 +160,11 @@ void Chord::joinForeignPartition(const NodeHandle &node)
 }
 
 
-void Chord::changeState(int toState)
+void PermissionedChord::changeState(int toState)
 {
     //
     // Defines tasks to be executed when a state change occurs.
     //
-
     switch (toState) {
     case INIT:
         state = INIT;
@@ -180,6 +188,21 @@ void Chord::changeState(int toState)
         }
 
         getParentModule()->getParentModule()->bubble("Enter INIT state.");
+        break;
+
+    case REGISTRATION:
+        state = REGISTRATION;
+        // Continue here
+        cancelEvent(registration_timer);
+        // debug message
+        if (debugOutput) {
+            EV << "[Chord::changeState() @ " << thisNode.getIp()
+            << " (" << thisNode.getKey().toString(16) << ")]\n"
+            << "    Entered REGISTRATION stage"
+            << endl;
+        }
+        getParentModule()->getParentModule()->bubble("Enter REGISTRATION state.");
+        scheduleAt(simTime(), registration_timer);
         break;
 
     case JOIN:
@@ -248,10 +271,15 @@ void Chord::changeState(int toState)
 }
 
 
-void Chord::handleTimerEvent(cMessage* msg)
+void PermissionedChord::handleTimerEvent(cMessage* msg)
 {
+    EV << "HANDLING TIMER EVENT: " << msg->getName();
+    // catch REGISTRATION timer
+    if (msg == registration_timer) {
+        handleRegistrationTimerExpired(msg);
+    }
     // catch JOIN timer
-    if (msg == join_timer) {
+    else if (msg == join_timer) {
         handleJoinTimerExpired(msg);
     }
     // catch STABILIZE timer
@@ -277,9 +305,9 @@ void Chord::handleTimerEvent(cMessage* msg)
 }
 
 
-void Chord::handleUDPMessage(BaseOverlayMessage* msg)
+void PermissionedChord::handleUDPMessage(BaseOverlayMessage* msg)
 {
-    ChordMessage* chordMsg = check_and_cast<ChordMessage*>(msg);
+    ChordMessage* chordMsg = omnetpp::check_and_cast<ChordMessage*>(msg);
     switch(chordMsg->getCommand()) {
     case NEWSUCCESSORHINT:
         handleNewSuccessorHint(chordMsg);
@@ -293,7 +321,7 @@ void Chord::handleUDPMessage(BaseOverlayMessage* msg)
 }
 
 
-bool Chord::handleRpcCall(BaseCallMessage* msg)
+bool PermissionedChord::handleRpcCall(BaseCallMessage* msg)
 {
     if (state != READY) {
         EV << "[Chord::handleRpcCall() @ " << thisNode.getIp()
@@ -315,7 +343,7 @@ bool Chord::handleRpcCall(BaseCallMessage* msg)
     return RPC_HANDLED;
 }
 
-void Chord::handleRpcResponse(BaseResponseMessage* msg,
+void PermissionedChord::handleRpcResponse(BaseResponseMessage* msg,
                               cObject* context, int rpcId,
                               simtime_t rtt)
 {
@@ -326,6 +354,15 @@ void Chord::handleRpcResponse(BaseResponseMessage* msg,
         << " (" << thisNode.getKey().toString(16) << ")]\n"
         << "    Received a Join RPC Response: id=" << rpcId << "\n"
         << "    msg=" << *_JoinResponse << " rtt=" << rtt
+        << endl;
+        break;
+    }
+    RPC_ON_RESPONSE( Registration ) {
+        handleRpcRegistrationResponse(_RegistrationResponse);
+        EV << "[Chord::handleRpcResponse() @ " << thisNode.getIp()
+        << " (" << thisNode.getKey().toString(16) << ")]\n"
+        << "    Received a Registration RPC Response: id=" << rpcId << "\n"
+        << "    msg=" << *_RegistrationResponse << " rtt=" << rtt
         << endl;
         break;
     }
@@ -359,7 +396,7 @@ void Chord::handleRpcResponse(BaseResponseMessage* msg,
     RPC_SWITCH_END( )
 }
 
-void Chord::handleRpcTimeout(BaseCallMessage* msg,
+void PermissionedChord::handleRpcTimeout(BaseCallMessage* msg,
                              const TransportAddress& dest,
                              cObject* context, int rpcId,
                              const OverlayKey&)
@@ -410,18 +447,18 @@ void Chord::handleRpcTimeout(BaseCallMessage* msg,
     RPC_SWITCH_END( )
 }
 
-int Chord::getMaxNumSiblings()
+int PermissionedChord::getMaxNumSiblings()
 {
     return successorListSize;
 }
 
-int Chord::getMaxNumRedundantNodes()
+int PermissionedChord::getMaxNumRedundantNodes()
 {
     return extendedFingerTable ? numFingerCandidates : 1;
 }
 
 
-bool Chord::isSiblingFor(const NodeHandle& node,
+bool PermissionedChord::isSiblingFor(const NodeHandle& node,
                          const OverlayKey& key,
                          int numSiblings,
                          bool* err)
@@ -501,7 +538,7 @@ bool Chord::isSiblingFor(const NodeHandle& node,
     return false;
 }
 
-bool Chord::handleFailedNode(const TransportAddress& failed)
+bool PermissionedChord::handleFailedNode(const TransportAddress& failed)
 {
     Enter_Method_Silent();
 
@@ -547,7 +584,7 @@ bool Chord::handleFailedNode(const TransportAddress& failed)
     return !(successorList->isEmpty());
 }
 
-NodeVector* Chord::findNode(const OverlayKey& key,
+NodeVector* PermissionedChord::findNode(const OverlayKey& key,
                             int numRedundantNodes,
                             int numSiblings,
                             BaseOverlayMessage* msg)
@@ -601,7 +638,7 @@ NodeVector* Chord::findNode(const OverlayKey& key,
 }
 
 
-NodeVector* Chord::closestPreceedingNode(const OverlayKey& key)
+NodeVector* PermissionedChord::closestPreceedingNode(const OverlayKey& key)
 {
     NodeHandle tempHandle = NodeHandle::UNSPECIFIED_NODE;
 
@@ -675,7 +712,7 @@ NodeVector* Chord::closestPreceedingNode(const OverlayKey& key)
     return nextHop;
 }
 
-void Chord::recordOverlaySentStats(BaseOverlayMessage* msg)
+void PermissionedChord::recordOverlaySentStats(BaseOverlayMessage* msg)
 {
     BaseOverlayMessage* innerMsg = msg;
     while (innerMsg->getType() != APPDATA &&
@@ -725,7 +762,7 @@ void Chord::recordOverlaySentStats(BaseOverlayMessage* msg)
 }
 
 
-void Chord::finishOverlay()
+void PermissionedChord::finishOverlay()
 {
     // remove this node from the bootstrap list
     bootstrapList->removeBootstrapNode(thisNode);
@@ -756,8 +793,24 @@ void Chord::finishOverlay()
 }
 
 
+void PermissionedChord::handleRegistrationTimerExpired(cMessage* msg) {
+    // call JOIN RPC
+    RegistrationCall* call = new RegistrationCall("RegistrationCall");
+    call->setKey(thisNode.getKey());
+    call->setBitLength(REGISTRATIONCALL_L(call));
 
-void Chord::handleJoinTimerExpired(cMessage* msg)
+    sendUdpRpcCall(certificateAuthority, call);
+
+    // TODO: start registration upon positive registration response
+
+
+    // schedule next join process in the case this one fails
+    //cancelEvent(join_timer);
+    //scheduleAt(simTime() + joinDelay, msg);
+}
+
+
+void PermissionedChord::handleJoinTimerExpired(cMessage* msg)
 {
     // only process timer, if node is not joined yet
     if (state == READY)
@@ -792,7 +845,7 @@ void Chord::handleJoinTimerExpired(cMessage* msg)
 }
 
 
-void Chord::handleStabilizeTimerExpired(cMessage* msg)
+void PermissionedChord::handleStabilizeTimerExpired(cMessage* msg)
 {
     if (state != READY)
         return;
@@ -844,7 +897,7 @@ void Chord::handleStabilizeTimerExpired(cMessage* msg)
 }
 
 
-void Chord::handleFixFingersTimerExpired(cMessage* msg)
+void PermissionedChord::handleFixFingersTimerExpired(cMessage* msg)
 {
     if ((state != READY) || successorList->isEmpty())
         return;
@@ -877,7 +930,7 @@ void Chord::handleFixFingersTimerExpired(cMessage* msg)
 }
 
 
-void Chord::handleNewSuccessorHint(ChordMessage* chordMsg)
+void PermissionedChord::handleNewSuccessorHint(ChordMessage* chordMsg)
 {
     NewSuccessorHintMessage* newSuccessorHintMsg =
         check_and_cast<NewSuccessorHintMessage*>(chordMsg);
@@ -916,7 +969,7 @@ void Chord::handleNewSuccessorHint(ChordMessage* chordMsg)
 }
 
 
-void Chord::rpcJoin(JoinCall* joinCall)
+void PermissionedChord::rpcJoin(JoinCall* joinCall)
 {
     NodeHandle requestor = joinCall->getSrcNode();
 
@@ -987,7 +1040,7 @@ void Chord::rpcJoin(JoinCall* joinCall)
     updateTooltip();
 }
 
-void Chord::handleRpcJoinResponse(JoinResponse* joinResponse)
+void PermissionedChord::handleRpcJoinResponse(JoinResponse* joinResponse)
 {
     // determine the numer of successor nodes to add
     int sucNum = successorListSize - 1;
@@ -1054,7 +1107,15 @@ void Chord::handleRpcJoinResponse(JoinResponse* joinResponse)
 }
 
 
-void Chord::rpcStabilize(StabilizeCall* call)
+void PermissionedChord::handleRpcRegistrationResponse(RegistrationResponse* registrationResponse) {
+    if(registrationResponse->getIsNodeRegistered())
+        changeState(JOIN);
+    else
+        changeState(SHUTDOWN);
+}
+
+
+void PermissionedChord::rpcStabilize(StabilizeCall* call)
 {
     // our predecessor seems to be alive
     if (!predecessorNode.isUnspecified() &&
@@ -1071,7 +1132,7 @@ void Chord::rpcStabilize(StabilizeCall* call)
     sendRpcResponse(call, stabilizeResponse);
 }
 
-void Chord::handleRpcStabilizeResponse(StabilizeResponse* stabilizeResponse)
+void PermissionedChord::handleRpcStabilizeResponse(StabilizeResponse* stabilizeResponse)
 {
     if (state != READY) {
         return;
@@ -1105,7 +1166,7 @@ void Chord::handleRpcStabilizeResponse(StabilizeResponse* stabilizeResponse)
     sendUdpRpcCall(successorList->getSuccessor(), notifyCall);
 }
 
-void Chord::rpcNotify(NotifyCall* call)
+void PermissionedChord::rpcNotify(NotifyCall* call)
 {
     // our predecessor seems to be alive
     if (!predecessorNode.isUnspecified() &&
@@ -1191,7 +1252,7 @@ void Chord::rpcNotify(NotifyCall* call)
 }
 
 
-void Chord::handleRpcNotifyResponse(NotifyResponse* notifyResponse)
+void PermissionedChord::handleRpcNotifyResponse(NotifyResponse* notifyResponse)
 {
     if (state != READY) {
         return;
@@ -1227,7 +1288,7 @@ void Chord::handleRpcNotifyResponse(NotifyResponse* notifyResponse)
 }
 
 
-void Chord::rpcFixfingers(FixfingersCall* call)
+void PermissionedChord::rpcFixfingers(FixfingersCall* call)
 {
     FixfingersResponse* fixfingersResponse =
         new FixfingersResponse("FixfingersResponse");
@@ -1256,7 +1317,7 @@ void Chord::rpcFixfingers(FixfingersCall* call)
 }
 
 
-void Chord::handleRpcFixfingersResponse(FixfingersResponse* fixfingersResponse,
+void PermissionedChord::handleRpcFixfingersResponse(FixfingersResponse* fixfingersResponse,
                                         double rtt)
 {
     /*
@@ -1322,7 +1383,7 @@ void Chord::handleRpcFixfingersResponse(FixfingersResponse* fixfingersResponse,
     }
 }
 
-void Chord::proxCallback(const TransportAddress &node, int rpcId,
+void PermissionedChord::proxCallback(const TransportAddress &node, int rpcId,
                          cObject *contextPointer, Prox prox)
 {
     if (prox == Prox::PROX_TIMEOUT) {
@@ -1334,7 +1395,7 @@ void Chord::proxCallback(const TransportAddress &node, int rpcId,
     fingerTable->updateFinger(rpcId, (NodeHandle&)node, prox.proximity);
 }
 
-void Chord::pingResponse(PingResponse* pingResponse, cObject* context,
+void PermissionedChord::pingResponse(PingResponse* pingResponse, cObject* context,
                          int rpcId, simtime_t rtt)
 {
     EV << "[Chord::pingResponse() @ " << thisNode.getIp()
@@ -1347,7 +1408,7 @@ void Chord::pingResponse(PingResponse* pingResponse, cObject* context,
         fingerTable->updateFinger(rpcId, pingResponse->getSrcNode(), rtt);
 }
 
-void Chord::pingTimeout(PingCall* pingCall,
+void PermissionedChord::pingTimeout(PingCall* pingCall,
                         const TransportAddress& dest,
                         cObject* context, int rpcId)
 {
@@ -1359,7 +1420,7 @@ void Chord::pingTimeout(PingCall* pingCall,
     handleFailedNode(dest);
 }
 
-void Chord::findFriendModules()
+void PermissionedChord::findFriendModules()
 {
     fingerTable = check_and_cast<ChordFingerTable*>
                   (getParentModule()->getSubmodule("fingerTable"));
@@ -1369,7 +1430,7 @@ void Chord::findFriendModules()
 }
 
 
-void Chord::initializeFriendModules()
+void PermissionedChord::initializeFriendModules()
 {
     // initialize finger table
     fingerTable->initializeTable(thisNode.getKey().getLength(), thisNode, this);
@@ -1379,7 +1440,7 @@ void Chord::initializeFriendModules()
 }
 
 
-void Chord::updateTooltip()
+void PermissionedChord::updateTooltip()
 {
     if (hasGUI()) {
         std::stringstream ttString;
@@ -1403,7 +1464,7 @@ void Chord::updateTooltip()
 }
 
 // TODO: The following should be removed, since Chord doesn't have a simple metric
-OverlayKey Chord::distance(const OverlayKey& x,
+OverlayKey PermissionedChord::distance(const OverlayKey& x,
                            const OverlayKey& y,
                            bool useAlternative) const
 {

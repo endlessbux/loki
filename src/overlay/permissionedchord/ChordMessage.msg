@@ -20,6 +20,8 @@ static const int PRENODESET_L = 1;
 #define JOINCALL_L(msg) BASECALL_L(msg)
 #define JOINRESPONSE_L(msg) (BASERESPONSE_L(msg) + SUCNUM_L + NODEHANDLE_L +\
                              (msg->getSucNodeArraySize() * NODEHANDLE_L))
+#define REGISTRATIONCALL_L(msg) BASECALL_L(msg)
+#define REGISTRATIONRESPONSE_L(msg) (BASERESPONSE_L(msg) + NODEHANDLE_L)
 #define STABILIZECALL_L(msg) BASECALL_L(msg)
 #define STABILIZERESPONSE_L(msg) (BASERESPONSE_L(msg) + NODEHANDLE_L)
 #define FIXFINGERSCALL_L(msg) (BASECALL_L(msg) + FINGER_L)
@@ -86,6 +88,20 @@ packet NotifyResponse extends ::BaseResponseMessage
     ::NodeHandle sucNode[];    // successor list of the message originator
     ::NodeHandle preNode;    // in aggressiveJoinMode: predecessor hint
     bool preNodeSet; // indicates if the dest node has been set as new predecessor (for merging)
+}
+
+//
+// Message used to register to the chord overlay
+//
+packet RegistrationCall extends ::BaseCallMessage {
+    ::OverlayKey key;
+}
+
+//
+// Message used to answer to a RegistrationCall message
+//
+packet RegistrationResponse extends ::BaseResponseMessage {
+    bool isNodeRegistered;
 }
 
 //

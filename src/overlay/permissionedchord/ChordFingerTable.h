@@ -39,7 +39,7 @@ namespace loki {
 typedef std::multimap<simtime_t, NodeHandle> Successors;
 typedef std::pair<NodeHandle, Successors> FingerEntry;
 
-class Chord;
+class PermissionedChord;
 
 /**
  * Chord's finger table module
@@ -73,7 +73,7 @@ class ChordFingerTable : public cSimpleModule
      * @param overlay pointer to the main chord module
      */
     virtual void initializeTable(uint32_t size, const NodeHandle& owner,
-                                 Chord* overlay);
+                                 PermissionedChord* overlay);
 
     /**
      * Sets a particular finger to point to node
@@ -119,7 +119,7 @@ private:
 
     uint32_t maxSize; /**< maximum size of the finger table */
     std::deque<FingerEntry> fingerTable; /**< the finger table vector */
-    Chord* overlay; /**< pointer to the main chord module */
+    PermissionedChord* overlay; /**< pointer to the main chord module */
 };
 
 }; //namespace
