@@ -1,4 +1,4 @@
-#include "../permissionedchord/Conductor.h"
+#include "Conductor.h"
 
 #include <stdio.h>
 #include <iostream>
