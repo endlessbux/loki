@@ -18,9 +18,6 @@ void TrafficMixer::initializeApp(int stage) {
     poolSize = par("poolSize");
     numCircuits = par("numCircuits");
 
-    identityKey = new IdentityKey(&thisNode);
-    onionKey = identityKey->generateNewOnionKey();
-
     changeState(INIT);
 }
 

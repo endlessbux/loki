@@ -26,7 +26,7 @@
 
 #include "common/BaseOverlay.h"
 #include "common/NeighborCache.h"
-#include "common/certificate.h"
+#include "applications/trafficmixer/mixerpackets/Certificate.h"
 
 #include "overlay/permissionedchord/ChordMessage_m.h"
 
@@ -48,7 +48,7 @@ class ChordFingerTable;
 class PermissionedChord : public BaseOverlay, public ProxListener
 {
 public:
-    certificate cert;
+    Certificate cert;
 
     PermissionedChord();
     virtual ~PermissionedChord();

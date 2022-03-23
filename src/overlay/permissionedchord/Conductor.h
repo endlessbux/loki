@@ -7,6 +7,7 @@
 #include "common/CommonMessages_m.h"
 #include "overlay/permissionedchord/ChordMessage_m.h"
 
+using loki::RegistrationCall;
 
 class Conductor : public BaseOverlay {
     /**
@@ -35,13 +36,7 @@ class Conductor : public BaseOverlay {
 
 
         //virtual void handleJoin();
-        virtual void handleRegistration(loki::RegistrationCall* registrationMsg);
-
-    private:
-        char* privateKey;
-
-        bool registerUser(L3Address* nodeAddress);
-        certificate* signCertification(OverlayKey* peerKey);
+        virtual void handleRegistration(RegistrationCall* registrationMsg);
 };
 
 

@@ -192,7 +192,6 @@ void PermissionedChord::changeState(int toState)
 
     case REGISTRATION:
         state = REGISTRATION;
-        // Continue here
         cancelEvent(registration_timer);
         // debug message
         if (debugOutput) {
@@ -796,7 +795,6 @@ void PermissionedChord::finishOverlay()
 void PermissionedChord::handleRegistrationTimerExpired(cMessage* msg) {
     // call JOIN RPC
     RegistrationCall* call = new RegistrationCall("RegistrationCall");
-    call->setKey(thisNode.getKey());
     call->setBitLength(REGISTRATIONCALL_L(call));
 
     sendUdpRpcCall(certificateAuthority, call);
@@ -1108,10 +1106,12 @@ void PermissionedChord::handleRpcJoinResponse(JoinResponse* joinResponse)
 
 
 void PermissionedChord::handleRpcRegistrationResponse(RegistrationResponse* registrationResponse) {
-    if(registrationResponse->getIsNodeRegistered())
+    if(registrationResponse->getCert().isValid()) {
+        cert = registrationResponse->getCert();
         changeState(JOIN);
-    else
+    } else {
         changeState(SHUTDOWN);
+    }
 }
 
 

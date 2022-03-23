@@ -8,8 +8,6 @@
 #include "common/BaseApp.h"
 #include "common/NodeHandle.h"
 #include "OnionCircuit.h"
-#include "OnionKey.h"
-#include "IdentityKey.h"
 
 
 
@@ -41,8 +39,6 @@ class TrafficMixer : public BaseApp {
 
     protected:
         DHT dht;
-        IdentityKey* identityKey;
-        OnionKey* onionKey;
 
         virtual void changeState(int state);
 

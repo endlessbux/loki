@@ -3,6 +3,7 @@ cplusplus {{
 #include "common/NodeHandle.h"
 #include "common/TransportAddress.h"
 #include "common/CommonMessages_m.h"
+#include "applications/trafficmixer/mixerpackets/Certificate.h"
 
 // constants for message length in bit
 static const int CHORDCOMMAND_L = 8;
@@ -34,6 +35,8 @@ static const int PRENODESET_L = 1;
 
 #define KOORDEFINDNODEEXTMESSAGE_L (KEY_L + STEP_L)
 
+class Certificate;
+
 }}
 //todo add more Koorde message lengths
 
@@ -45,6 +48,7 @@ class BaseOverlayMessage;
 class BaseRpcMessage;
 class BaseCallMessage;
 class BaseResponseMessage;
+class Certificate;
 
 
 namespace loki;
@@ -94,14 +98,14 @@ packet NotifyResponse extends ::BaseResponseMessage
 // Message used to register to the chord overlay
 //
 packet RegistrationCall extends ::BaseCallMessage {
-    ::OverlayKey key;
+    Certificate cert;
 }
 
 //
 // Message used to answer to a RegistrationCall message
 //
 packet RegistrationResponse extends ::BaseResponseMessage {
-    bool isNodeRegistered;
+    Certificate cert;
 }
 
 //
