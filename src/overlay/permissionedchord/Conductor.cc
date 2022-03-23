@@ -90,16 +90,16 @@ void Conductor::handleRegistration(loki::RegistrationCall* registrationMsg) {
 
     // OnionKey expires after a year
     receivedKey.setExpiration(simTime() + 3600 * 24 * 365);
-    Certificate* releasedCert = new Certificate();
-    releasedCert->sign();
-    OnionKey* updatedKey = receivedKey.dup();
-    releasedCert->setExchangeKey(*updatedKey);
+    Certificate releasedCert = Certificate();
+    releasedCert.sign();
+    OnionKey updatedKey = *receivedKey.dup();
+    releasedCert.setExchangeKey(updatedKey);
 
     // TODO: Register this data on local memory
 
     // Send response
     loki::RegistrationResponse* responseMsg = new loki::RegistrationResponse("RegistrationResponse");
-    responseMsg->setCert(*releasedCert);
+    responseMsg->setCert(releasedCert);
     sendRpcResponse(registrationMsg, responseMsg);
 }
 
