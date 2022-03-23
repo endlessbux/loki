@@ -8,7 +8,7 @@
 class OnionMessage : public OnionMessage_Base {
 
     /**
-     * Class to showcase the functioning of Onion Routing.
+     * Class to demonstrate the functioning of Onion Routing.
      */
     public:
         OnionMessage(const char *name=nullptr) : OnionMessage_Base(name) {}
