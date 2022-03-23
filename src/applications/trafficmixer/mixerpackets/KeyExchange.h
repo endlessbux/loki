@@ -34,7 +34,7 @@ class KeyExchange : public KeyExchange_Base {
          * @param key OnionKey the key-pair used for encryption.
          */
         void encrypt(OnionKey key) {
-            setExchangeKey(key->dup());
+            setExchangeKey(*key.dup());
         }
 
 };
