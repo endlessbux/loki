@@ -4,10 +4,9 @@
 #include <omnetpp.h>
 #include <vector>
 #include <memory>
-#include "applications/dht/DHT.h"
+#include "tier2/dhtmediator/DHTMediator.h"
 #include "common/BaseApp.h"
 #include "common/NodeHandle.h"
-#include "OnionCircuit.h"
 
 
 
@@ -28,8 +27,6 @@ class TrafficMixer : public BaseApp {
         int numSent;
         int numRelayed;
 
-        // timers
-        cMessage* keepAliveTimer;
 
         TrafficMixer();
         virtual ~TrafficMixer() {};
@@ -38,49 +35,12 @@ class TrafficMixer : public BaseApp {
         void handleTimerEvent(cMessage* msg);
 
     protected:
-        DHT dht;
 
         virtual void changeState(int state);
 
-        /**
-         * Returns the amount of required peers to start building circuits
-         */
-        uint getNumRequiredPeers();
-
-        /**
-         * Maintains the amount of operational circuits equal to
-         * numCircuits value.
-         */
-        void maintainCircuits();
-
     private:
-        States state;
+        DHTMediator dht;
 
-        size_t poolSize;                       // amount of nodes in the relay pool
-        std::vector<NodeHandle*> relayPool; // the relays to be used to build
-                                            // circuits
-
-        size_t numCircuits;                        // amount of circuits to be built
-        std::vector<OnionCircuit*> circuits;    // built circuits which will be used
-                                                // to redirect traffic
-
-
-        //void handleDataReceived(TransportAddress address, cPacket* msg, bool urgent);
-        //void handleConnectionEvent(EvCode code, TransportAddress address);
-
-        /**
-         *
-         */
-
-        /**
-         * Sends a packet to unused circuits to keep them operational
-         */
-        void keepCircuitsAlive();
-
-        /**
-         * Populates the relay pool with the set amount of nodes (poolSize)
-         */
-        void populatePool();
 };
 
 

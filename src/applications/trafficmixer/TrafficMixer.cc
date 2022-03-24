@@ -15,9 +15,6 @@ void TrafficMixer::initializeApp(int stage) {
         return;
     }
 
-    poolSize = par("poolSize");
-    numCircuits = par("numCircuits");
-
     changeState(INIT);
 }
 
@@ -39,13 +36,10 @@ void TrafficMixer::changeState(int state) {
         //dht.dataStorage->addData(key, kind, id, value, ttlMessage, is_modifiable, sourceNode, responsible)
 
         // make sure there are enough peers to populate the relay pool
-        if(globalNodeList->getNumNodes() <= poolSize) {
-            changeState(AWAIT);
-            return;
-        }
+
 
         // populate relay pool
-        populatePool();
+
         break;
     case AWAIT:
 
@@ -62,18 +56,5 @@ void TrafficMixer::changeState(int state) {
         // close up existing circuits
 
         break;
-    }
-}
-
-
-void TrafficMixer::keepCircuitsAlive() {
-
-}
-
-
-void TrafficMixer::populatePool() {
-    while(relayPool.size() < poolSize) {
-        // get random node
-        TransportAddress* randomAddress = globalNodeList->getRandomAliveNode();
     }
 }

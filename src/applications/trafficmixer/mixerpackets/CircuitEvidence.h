@@ -35,13 +35,20 @@ class CircuitEvidence : public CircuitEvidence_Base {
 
         CircuitEvidence(CreateCircuitRequest request, Certificate producerCert,
                         BinaryValue producerSignature) :
-        CircuitEvidence(CIRCUIT_CREATION, BinaryValue(request), producerCert,
-                        producerSignature, OverlayKey::sha1(BinaryValue(request))) { }
+        CircuitEvidence(
+                CIRCUIT_CREATION,
+                BinaryValue(&request),
+                producerCert,
+                producerSignature,
+                OverlayKey::sha1(BinaryValue(&request))) { }
 
         CircuitEvidence(ExtendCircuitRequest request, Certificate producerCert,
                         BinaryValue producerSignature) :
-        CircuitEvidence(CIRCUIT_EXTENSION, BinaryValue(request), producerCert,
-                        producerSignature, OverlayKey::sha1(BinaryValue(request))) { }
+        CircuitEvidence(CIRCUIT_EXTENSION,
+                        BinaryValue(&request),
+                        producerCert,
+                        producerSignature,
+                        OverlayKey::sha1(BinaryValue(&request))) { }
 
         bool isAuthenticated() {
             return producerCert.getIsSigned() &&
