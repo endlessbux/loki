@@ -5,7 +5,7 @@ cplusplus {{
 }}
 
 
-class noncobject BinaryValue;
+class BinaryValue extends cObject;
 class noncobject OverlayKey;
 class Certificate;
 

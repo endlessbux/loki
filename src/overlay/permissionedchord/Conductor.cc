@@ -92,8 +92,7 @@ void Conductor::handleRegistration(loki::RegistrationCall* registrationMsg) {
     receivedKey.setExpiration(simTime() + 3600 * 24 * 365);
     Certificate releasedCert = Certificate();
     releasedCert.sign();
-    OnionKey updatedKey = *receivedKey.dup();
-    releasedCert.setExchangeKey(updatedKey);
+    releasedCert.setExchangeKey(receivedKey);
 
     // TODO: Register this data on local memory
 

@@ -33,6 +33,7 @@
 #include "overlay/permissionedchord/Conductor.h"
 #include "overlay/permissionedchord/ChordFingerTable.h"
 #include "overlay/permissionedchord/ChordSuccessorList.h"
+#include "tier2/dhtmediator/DHTMediator.h"
 
 
 namespace loki {
@@ -414,6 +415,14 @@ void PermissionedChord::handleRpcTimeout(BaseCallMessage* msg,
         << " (" << thisNode.getKey().toString(16) << ")]\n"
         << "    Join RPC Call timed out: id=" << rpcId << "\n"
         << "    msg=" << *_JoinCall
+        << endl;
+        break;
+    }
+    RPC_ON_CALL( Registration ) {
+        EV << "[Chord::handleRpcTimeout() @ " << thisNode.getIp()
+        << " (" << thisNode.getKey().toString(16) << ")]\n"
+        << "    Registration RPC Call timed out: id=" << rpcId << "\n"
+        << "    msg=" << *_RegistrationCall
         << endl;
         break;
     }
@@ -799,12 +808,9 @@ void PermissionedChord::handleRegistrationTimerExpired(cMessage* msg) {
 
     sendUdpRpcCall(certificateAuthority, call);
 
-    // TODO: start registration upon positive registration response
-
-
-    // schedule next join process in the case this one fails
-    //cancelEvent(join_timer);
-    //scheduleAt(simTime() + joinDelay, msg);
+    // schedule next registration process in the case this one fails
+    cancelEvent(registration_timer);
+    scheduleAt(simTime() + joinDelay, msg);
 }
 
 
@@ -829,6 +835,7 @@ void PermissionedChord::handleJoinTimerExpired(cMessage* msg)
     // call JOIN RPC
     JoinCall* call = new JoinCall("JoinCall");
     call->setBitLength(JOINCALL_L(call));
+    call->setCert(cert);
 
     RoutingType routingType = (defaultRoutingType == FULL_RECURSIVE_ROUTING ||
                                defaultRoutingType == RECURSIVE_SOURCE_ROUTING) ?
@@ -836,6 +843,9 @@ void PermissionedChord::handleJoinTimerExpired(cMessage* msg)
 
     sendRouteRpcCall(OVERLAY_COMP, bootstrapNode, thisNode.getKey(),
                      call, NULL, routingType, joinDelay);
+
+    EV << "-- SHARING JOIN CALL WITH APPLICATION LAYER --";
+    sendInternalRpcCall(TIER3_COMP, call->dup());
 
     // schedule next join process in the case this one fails
     cancelEvent(join_timer);
@@ -970,6 +980,12 @@ void PermissionedChord::handleNewSuccessorHint(ChordMessage* chordMsg)
 void PermissionedChord::rpcJoin(JoinCall* joinCall)
 {
     NodeHandle requestor = joinCall->getSrcNode();
+    Certificate requestorCert = joinCall->getCert();
+
+    if(!requestorCert.isValid()) {
+        // refuse joining nodes with invalid Certificates
+        return;
+    }
 
     // compile successor list
     JoinResponse* joinResponse =
@@ -1034,6 +1050,7 @@ void PermissionedChord::rpcJoin(JoinCall* joinCall)
     // if we don't have a successor, the requestor is also our new successor
     if (successorList->isEmpty())
         successorList->addSuccessor(requestor);
+
 
     updateTooltip();
 }
@@ -1112,6 +1129,7 @@ void PermissionedChord::handleRpcRegistrationResponse(RegistrationResponse* regi
     } else {
         changeState(SHUTDOWN);
     }
+    cancelEvent(registration_timer);
 }
 
 

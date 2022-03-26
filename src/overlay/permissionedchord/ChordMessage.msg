@@ -113,6 +113,7 @@ packet RegistrationResponse extends ::BaseResponseMessage {
 //
 packet JoinCall extends ::BaseCallMessage
 {
+	Certificate cert;
 }
 
 //

@@ -53,7 +53,7 @@ class BinaryValue : public std::vector<char>, public cObject {
     bool isUnspecified() const;
 };
 
-inline void doParsimPacking(cCommBuffer *b, BinaryValue& obj) {obj.netPack(b);}
-inline void doParsimUnpacking(cCommBuffer *b, BinaryValue& obj) {obj.netUnpack(b);}
+inline void doParsimPacking(omnetpp::cCommBuffer *b, BinaryValue& obj) {obj.netPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, BinaryValue& obj) {obj.netUnpack(b);}
 
 #endif

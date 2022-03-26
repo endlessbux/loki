@@ -5,7 +5,7 @@ cplusplus {{
 
 
 class noncobject OverlayKey;
-class noncobject BinaryValue;
+class BinaryValue extends cObject;
 
 
 enum TrafficDirection {

@@ -7,10 +7,17 @@
 
 class DHTMediator : public DHTTestApp {
     public:
+        enum EntryTypes {
+            NODEINFO   = 2,
+            EVIDENCE    = 3
+        };
+
         DHTMediator();
         virtual ~DHTMediator();
 
         int storeEvidence(const CircuitEvidence evidence, const int ttl);
+
+        int storeCertificate(Certificate cert, NodeHandle nodeHandle);
 
     private:
 
@@ -37,7 +44,8 @@ class DHTMediator : public DHTTestApp {
             const OverlayKey& key,
             const BinaryValue value,
             const int ttl,
-            const bool isModifiable = true
+            const bool isModifiable = true,
+            const int kind = 1
         );
 
         /**

@@ -13,9 +13,7 @@ class Certificate : public Certificate_Base {
      * Class for simulating a cryptographic certificate.
      */
     public:
-        Certificate(const char *name=nullptr) : Certificate_Base(name) {
-            exchangeKey.setExpiration(SIMTIME_ZERO);
-        }
+        Certificate(const char *name=nullptr) : Certificate_Base(name) {}
         Certificate(const Certificate& other) : Certificate_Base(other) {}
         Certificate& operator=(const Certificate& other)
             {Certificate_Base::operator=(other); return *this;}
@@ -38,5 +36,8 @@ class Certificate : public Certificate_Base {
             setIsSigned(true);
         }
 };
+
+inline void doParsimPacking(cCommBuffer *b, Certificate& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(cCommBuffer *b, Certificate& obj) {obj.parsimUnpack(b);}
 
 #endif

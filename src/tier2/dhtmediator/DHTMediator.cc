@@ -40,7 +40,24 @@ int DHTMediator::storeEvidence(const CircuitEvidence evidence,
                                const int ttl) {
     OverlayKey key = evidence.getCircuitID();
     BinaryValue value = BinaryValue(evidence.dup());
-    return sendPutRequest(key, value, ttl, false);
+    return sendPutRequest(key, value, ttl, false, EVIDENCE);
+}
+
+
+int DHTMediator::storeCertificate(Certificate cert,
+                                  NodeHandle handle) {
+
+    if(!cert.isValid()) {
+        // only store valid certificates
+        return 0;
+    }
+
+    BinaryValue hashedHandle = BinaryValue(handle.hash());
+    OverlayKey key = OverlayKey::sha1(hashedHandle);
+    BinaryValue value = BinaryValue(&cert);
+    simtime_t _ttl = cert.getExchangeKey().getExpiration() - simTime();
+    int ttl = _ttl.inUnit(SIMTIME_S);
+    return sendPutRequest(key, value, ttl, true, NODEINFO);
 }
 
 
@@ -48,12 +65,14 @@ int DHTMediator::sendPutRequest(
         const OverlayKey& key,
         const BinaryValue value,
         const int ttl,
-        const bool isModifiable) {
+        const bool isModifiable,
+        const int kind) {
     DHTputCAPICall* dhtPutMsg = new DHTputCAPICall();
     dhtPutMsg->setKey(key);
     dhtPutMsg->setValue(value);
     dhtPutMsg->setTtl(ttl);
-    dhtPutMsg->setIsModifiable(true);
+    dhtPutMsg->setIsModifiable(isModifiable);
+    dhtPutMsg->setKind(kind);
     RECORD_STATS(numSent++; numGetSent++);
 
     DHTStatsContext* context = new DHTStatsContext(
@@ -70,7 +89,7 @@ int DHTMediator::sendPutRequest(
 void DHTMediator::handleGetResponse(DHTgetCAPIResponse* msg,
                                     DHTStatsContext* context) {
     DhtDumpEntry entry = msg->getResult(0);
-    StorageGetResultMessage* resultMsg = new StorageGetResultMessage();
+    GetCall* resultMsg = new GetCall();
     resultMsg->setDhtEntry(entry);
     sendInternalRpcCall(TIER3_COMP, resultMsg, context);
 }
@@ -79,7 +98,7 @@ void DHTMediator::handleGetResponse(DHTgetCAPIResponse* msg,
 void DHTMediator::handlePutResponse(DHTputCAPIResponse* msg,
                                     DHTStatsContext* context) {
     int nonce = msg->getNonce();
-    StorageSuccessMessage* successMsg = new StorageSuccessMessage();
+    PutCall* successMsg = new PutCall();
     successMsg->setConfirmedNonce(nonce);
     sendInternalRpcCall(TIER3_COMP, successMsg, context);
 }
