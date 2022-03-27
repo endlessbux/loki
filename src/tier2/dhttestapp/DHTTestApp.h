@@ -50,6 +50,8 @@ class GlobalDhtTestMap;
 class DHTTestApp : public BaseApp
 {
 private:
+    friend class DHTMediator;
+
     /**
      * A container used by the DHTTestApp to
      * store context information for statistics

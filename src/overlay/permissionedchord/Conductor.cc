@@ -1,10 +1,12 @@
-#include "../permissionedchord/Conductor.h"
+#include "Conductor.h"
 
 #include <stdio.h>
 #include <iostream>
 #include "common/GlobalStatistics.h"
 #include "common/GlobalNodeListAccess.h"
 #include "common/BaseRpc.h"
+#include "applications/trafficmixer/mixerpackets/Certificate.h"
+#include "applications/trafficmixer/mixerpackets/AsymmetricKeySet.h"
 
 using namespace std;
 
@@ -83,31 +85,27 @@ void Conductor::changeState(int toState) {
 }
 
 
-//void Conductor::handleJoin() {
-//
-//}
-
-
 void Conductor::handleRegistration(loki::RegistrationCall* registrationMsg) {
-    // TODO: Register user on local memory
+    Certificate receivedCert = registrationMsg->getCert();
+    NodeHandle sourceNode = registrationMsg->getSrcNode();
+    AsymmetricKeySet receivedKey = receivedCert.getKeySet();
 
-    // Send response to request initiator
-    //NodeHandle* initiator = registrationMsg->getSrcNode();
+    // OnionKey expires after a year
+    receivedCert.setExpiration(simTime() + 3600 * 24 * 365);
+    receivedCert.sign();
+
+    // TODO: Register this data on local memory
+
+    // Send response
     loki::RegistrationResponse* responseMsg = new loki::RegistrationResponse("RegistrationResponse");
-    responseMsg->setIsNodeRegistered(true);
+    responseMsg->setCert(receivedCert);
     sendRpcResponse(registrationMsg, responseMsg);
 }
 
 
-bool Conductor::registerUser(L3Address* nodeAddress) {
-    return false;
-}
+// TODO:
+//bool Conductor::registerUser() {
+//
+//    return false;
+//}
 
-
-certificate* Conductor::signCertification(OverlayKey* peerKey) {
-    certificate* peerCertificate = new certificate;
-    peerCertificate->peerKey = peerKey;
-    peerCertificate->isNodeCertified = true;
-
-    return peerCertificate;
-}
