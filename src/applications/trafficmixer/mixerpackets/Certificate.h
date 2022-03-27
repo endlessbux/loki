@@ -3,40 +3,41 @@
 
 #include "CertificateBase_m.h"
 
+using omnetpp::simTime;
+
 
 class Conductor;
 
+
 class Certificate : public Certificate_Base {
     friend class Conductor;
-
-    /**
-     * Class for simulating a cryptographic certificate.
-     */
-    public:
-        Certificate(const char *name=nullptr) : Certificate_Base(name) {
-            exchangeKey.setExpiration(SIMTIME_ZERO);
-        }
-        Certificate(const Certificate& other) : Certificate_Base(other) {}
-        Certificate& operator=(const Certificate& other)
-            {Certificate_Base::operator=(other); return *this;}
-        virtual Certificate *dup() const {return new Certificate(*this);}
-
-        bool isValid() {
-            return !isExpired() && isAuthenticated();
-        }
-
     private:
-        bool isExpired() {
-            return exchangeKey.getExpiration() < simTime();
+        void copy(const Certificate& other) {
+            this->isSigned = other.isSigned;
+            this->expiration = other.expiration;
+            this->keySet = other.keySet;
         }
 
-        bool isAuthenticated() {
-            return getIsSigned();
+        bool isExpired() {
+            return simTime() > expiration;
         }
 
         void sign() {
-            setIsSigned(true);
+            isSigned = true;
+        }
+
+    public:
+        Certificate() : Certificate_Base() {}
+        Certificate(const Certificate& other) : Certificate_Base(other) {copy(other);}
+        Certificate& operator=(const Certificate& other) {if (this==&other) return *this; Certificate_Base::operator=(other); copy(other); return *this;}
+        virtual Certificate *dup() const override {return new Certificate(*this);}
+
+
+        bool isValid() {
+            return isSigned && !isExpired();
         }
 };
+
+Register_Class(Certificate);
 
 #endif

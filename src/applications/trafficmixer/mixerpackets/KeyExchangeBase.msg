@@ -1,15 +1,12 @@
 cplusplus {{
-#include "common/BinaryValue.h"
-#include "OnionKey_m.h"
+#include "AsymmetricEncryptionFlag.h"
 }}
 
-
-class noncobject BinaryValue;
-class noncobject OnionKey;
+class noncobject AsymmetricEncryptionFlag;
 
 
 packet KeyExchange {
     @customize(true);
-    BinaryValue symmetricKey;
-    OnionKey exchangeKey;
-}
+    string symmetricKey;
+    AsymmetricEncryptionFlag encryptionFlag;
+};

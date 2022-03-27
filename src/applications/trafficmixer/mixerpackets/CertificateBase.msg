@@ -1,13 +1,13 @@
 cplusplus {{
-#include "OnionKey_m.h"
+#include "AsymmetricKeySet.h"
 }}
 
-
-class OnionKey;
+class noncobject AsymmetricKeySet;
 
 
 packet Certificate {
-	@customize(true);
-	OnionKey exchangeKey;
-	bool isSigned = false;
+    @customize(true);
+    AsymmetricKeySet keySet;
+    simtime_t expiration;
+    bool isSigned = false;
 }

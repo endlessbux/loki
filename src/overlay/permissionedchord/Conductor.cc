@@ -5,6 +5,8 @@
 #include "common/GlobalStatistics.h"
 #include "common/GlobalNodeListAccess.h"
 #include "common/BaseRpc.h"
+#include "applications/trafficmixer/mixerpackets/Certificate.h"
+#include "applications/trafficmixer/mixerpackets/AsymmetricKeySet.h"
 
 using namespace std;
 
@@ -86,20 +88,17 @@ void Conductor::changeState(int toState) {
 void Conductor::handleRegistration(loki::RegistrationCall* registrationMsg) {
     Certificate receivedCert = registrationMsg->getCert();
     NodeHandle sourceNode = registrationMsg->getSrcNode();
-    OnionKey receivedKey = receivedCert.getExchangeKey();
+    AsymmetricKeySet receivedKey = receivedCert.getKeySet();
 
     // OnionKey expires after a year
-    receivedKey.setExpiration(simTime() + 3600 * 24 * 365);
-    Certificate* releasedCert = new Certificate();
-    releasedCert->sign();
-    OnionKey* updatedKey = receivedKey.dup();
-    releasedCert->setExchangeKey(*updatedKey);
+    receivedCert.setExpiration(simTime() + 3600 * 24 * 365);
+    receivedCert.sign();
 
     // TODO: Register this data on local memory
 
     // Send response
     loki::RegistrationResponse* responseMsg = new loki::RegistrationResponse("RegistrationResponse");
-    responseMsg->setCert(*releasedCert);
+    responseMsg->setCert(receivedCert);
     sendRpcResponse(registrationMsg, responseMsg);
 }
 
