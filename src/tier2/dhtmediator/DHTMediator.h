@@ -3,6 +3,7 @@
 
 #include "tier2/dhttestapp/DHTTestApp.h"
 #include "applications/trafficmixer/mixerpackets/CircuitEvidence.h"
+#include "applications/trafficmixer/mixerpackets/Certificate.h"
 
 
 class DHTMediator : public DHTTestApp {
@@ -18,6 +19,7 @@ class DHTMediator : public DHTTestApp {
         int storeEvidence(const CircuitEvidence evidence, const int ttl);
 
         int storeCertificate(Certificate cert, NodeHandle nodeHandle);
+
 
     private:
 

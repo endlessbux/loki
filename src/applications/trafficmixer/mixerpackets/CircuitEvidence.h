@@ -23,36 +23,41 @@ class CircuitEvidence : public CircuitEvidence_Base {
         virtual CircuitEvidence *dup() const {return new CircuitEvidence(*this);}
 
 
-        CircuitEvidence(EvidenceType type, BinaryValue requestPayload,
-                        Certificate producerCert, BinaryValue producerSignature,
+        CircuitEvidence(EvidenceType type, cPacket* request,
+                        Certificate producerCert,
+                        AsymmetricEncryptionFlag producerSignature,
                         OverlayKey circuitID) {
             this->type = type;
-            this->requestPayload = requestPayload;
             this->producerCert = producerCert;
             this->producerSignature = producerSignature;
             this->circuitID = circuitID;
+            this->encapsulate(request);
         }
 
         CircuitEvidence(CreateCircuitRequest request, Certificate producerCert,
-                        BinaryValue producerSignature) :
+                        AsymmetricEncryptionFlag producerSignature) :
         CircuitEvidence(
                 CIRCUIT_CREATION,
-                BinaryValue(&request),
+                &request,
                 producerCert,
                 producerSignature,
                 OverlayKey::sha1(BinaryValue(&request))) { }
 
         CircuitEvidence(ExtendCircuitRequest request, Certificate producerCert,
-                        BinaryValue producerSignature) :
-        CircuitEvidence(CIRCUIT_EXTENSION,
-                        BinaryValue(&request),
-                        producerCert,
-                        producerSignature,
-                        OverlayKey::sha1(BinaryValue(&request))) { }
+                        AsymmetricEncryptionFlag producerSignature) :
+        CircuitEvidence(
+                CIRCUIT_EXTENSION,
+                &request,
+                producerCert,
+                producerSignature,
+                OverlayKey::sha1(BinaryValue(&request))) { }
 
         bool isAuthenticated() {
             return producerCert.getIsSigned() &&
-                  (producerCert.getExchangeKey().getPrivateKey() == producerSignature);
+                   producerSignature.getState() == SIGNED &&
+                   producerSignature.verify(
+                       producerCert.getKeySet().getPublicKey()
+                   );
         }
 
     private:

@@ -1,42 +1,42 @@
 #ifndef __KEYEXCHANGE_H_
 #define __KEYEXCHANGE_H_
 
+
+#include "CommonEncryptionPackets_m.h"
 #include "KeyExchangeBase_m.h"
 
+using std::string;
 
 class KeyExchange : public KeyExchange_Base {
-    /**
-     * Class for simulating a key exchange through asymmetric encryption.
-     */
-    public:
-        KeyExchange(const char *name=nullptr) : KeyExchange_Base(name) {}
-        KeyExchange(const KeyExchange& other) : KeyExchange_Base(other) {}
-        KeyExchange& operator=(const KeyExchange& other)
-            {KeyExchange_Base::operator=(other); return *this;}
-        virtual KeyExchange *dup() const {return new KeyExchange(*this);}
+  private:
+    void copy(const KeyExchange& other) {
+        this->encryptionFlag = other.encryptionFlag;
+        this->symmetricKey = other.symmetricKey;
+    }
 
-        /**
-         * Simulate decryption of the exchanged symmetric key.
-         *
-         * @param key OnionKey The key-pair to be used for decryption
-         * @return the un-encrypted symmetric key
-         */
-        BinaryValue getSymmetricKey(OnionKey key) {
-            if(key.getPrivateKey() == getExchangeKey().getPrivateKey()) {
-                return symmetricKey;
-            }
-            return new BinaryValue();
+  public:
+    KeyExchange() : KeyExchange_Base() {}
+    KeyExchange(const KeyExchange& other) : KeyExchange_Base(other) {copy(other);}
+    KeyExchange& operator=(const KeyExchange& other) {if (this==&other) return *this; KeyExchange_Base::operator=(other); copy(other); return *this;}
+    virtual KeyExchange *dup() const override {return new KeyExchange(*this);}
+
+    string getSymmetricKey() {
+        if(encryptionFlag.getState() == ENCRYPTED) {
+            return symmetricKey.str();
         }
+        return "";
+    }
 
-        /**
-         * Simulate encryption of a symmetric key.
-         *
-         * @param key OnionKey the key-pair used for encryption.
-         */
-        void encrypt(OnionKey key) {
-            setExchangeKey(*key.dup());
-        }
+    string getSymmetricKey(string decryptionKey) {
+        encryptionFlag.decrypt(decryptionKey);
+        return getSymmetricKey();
+    }
 
+    void encrypt() {
+        encryptionFlag.encrypt();
+    }
 };
+
+Register_Class(KeyExchange);
 
 #endif

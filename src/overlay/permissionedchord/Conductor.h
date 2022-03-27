@@ -1,7 +1,6 @@
 #ifndef __CONDUCTOR_H_
 #define __CONDUCTOR_H_
 
-#include "common/certificate.h"
 #include "common/BaseOverlay.h"
 #include "inet/networklayer/common/L3Address.h"
 #include "common/CommonMessages_m.h"

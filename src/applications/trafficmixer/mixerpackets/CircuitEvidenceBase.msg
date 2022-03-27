@@ -2,11 +2,13 @@ cplusplus {{
 #include "common/BinaryValue.h"
 #include "common/OverlayKey.h"
 #include "Certificate.h"
+
+#include "AsymmetricEncryptionFlag.h"
 }}
 
 
-class BinaryValue extends cObject;
 class noncobject OverlayKey;
+class noncobject AsymmetricEncryptionFlag;
 class Certificate;
 
 
@@ -19,10 +21,9 @@ enum EvidenceType {
 packet CircuitEvidence {
     @customize(true);
     int type @enum(EvidenceType);
-    BinaryValue requestPayload;
     bool isEncrypted = true;
     Certificate producerCert;
-    BinaryValue producerSignature;
+    AsymmetricEncryptionFlag producerSignature;
     simtime_t timestamp;
     OverlayKey circuitID;
 }

@@ -55,7 +55,7 @@ int DHTMediator::storeCertificate(Certificate cert,
     BinaryValue hashedHandle = BinaryValue(handle.hash());
     OverlayKey key = OverlayKey::sha1(hashedHandle);
     BinaryValue value = BinaryValue(&cert);
-    simtime_t _ttl = cert.getExchangeKey().getExpiration() - simTime();
+    simtime_t _ttl = cert.getExpiration() - simTime();
     int ttl = _ttl.inUnit(SIMTIME_S);
     return sendPutRequest(key, value, ttl, true, NODEINFO);
 }
@@ -73,7 +73,7 @@ int DHTMediator::sendPutRequest(
     dhtPutMsg->setTtl(ttl);
     dhtPutMsg->setIsModifiable(isModifiable);
     dhtPutMsg->setKind(kind);
-    RECORD_STATS(numSent++; numGetSent++);
+    //RECORD_STATS(numSent++; numGetSent++);
 
     DHTStatsContext* context = new DHTStatsContext(
         globalStatistics->isMeasuring(),

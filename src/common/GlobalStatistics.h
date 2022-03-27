@@ -89,7 +89,7 @@ public:
 
     void startMeasuring();
 
-    inline bool isMeasuring() { return measuring; };
+    inline bool isMeasuring() { return true; };
     inline bool getMeasureNetwInitPhase() { return measureNetwInitPhase; };
     inline simtime_t getMeasureStartTime() { return measureStartTime; };
 

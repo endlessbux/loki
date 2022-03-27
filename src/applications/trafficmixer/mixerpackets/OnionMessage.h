@@ -4,6 +4,8 @@
 #include "OnionMessageBase_m.h"
 #include "common/OverlayKey.h"
 
+using std::string;
+
 
 class OnionMessage : public OnionMessage_Base {
 
@@ -18,19 +20,19 @@ class OnionMessage : public OnionMessage_Base {
         virtual OnionMessage *dup() const {return new OnionMessage(*this);}
 
 
-        OnionMessage(const TrafficDirection direction, const OverlayKey circuitID,
-                     const BinaryValue payload, const BinaryValue encryptionKey) {
+        OnionMessage(TrafficDirection direction, OverlayKey circuitID,
+                     SymmetricEncryptionFlag encryptionFlag) {
             this->direction = direction;
             this->circuitID = circuitID;
-            this->payload = payload;
-            this->encryptionKey = encryptionKey;
+            this->encryptionFlag = encryptionFlag;
         }
 
-        BinaryValue peel(BinaryValue decryptionKey) {
-            if(encryptionKey == decryptionKey) {
-                return payload;
+        cPacket* peel(string decryptionKey) {
+            encryptionFlag.decrypt(decryptionKey);
+            if(encryptionFlag.getState() == PLAINTEXT) {
+                return this->decapsulate();
             }
-            return BinaryValue();
+            return nullptr;
         }
 
 };
