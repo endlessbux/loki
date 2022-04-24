@@ -268,7 +268,7 @@ void TrafficMixer::internalHandleRpcTimeout(BaseCallMessage* msg,
                                             int rpcId,
                                             const OverlayKey& destKey) {
     printLog("internalHandleRpcTimeout");
-    // TODO
+    assert(false);
 }
 
 
@@ -491,12 +491,11 @@ void TrafficMixer::handleCreateCircuitCall(CreateCircuitCall* msg) {
     EV << "    Storing CircuitID: " << circuitID.toString() << endl;
     extCircuits[circuitID] = relay;
 
-    // TODO: uncomment
-//    StorePeerHandleCall* msgToTier3 = new StorePeerHandleCall();
-//    msgToTier3->setHandle(msg->getSrcNode());
-//    msgToTier3->setCert(msg->getCreatorCert());
-//    msgToTier3->setCommand(loki::STORE_LOCALLY);
-//    sendInternalRpcCall(TIER3_COMP, msgToTier3);
+    StorePeerHandleCall* msgToTier3 = new StorePeerHandleCall();
+    msgToTier3->setHandle(msg->getSrcNode());
+    msgToTier3->setCert(msg->getCreatorCert());
+    msgToTier3->setCommand(loki::STORE_LOCALLY);
+    sendInternalRpcCall(TIER3_COMP, msgToTier3);
 }
 
 void TrafficMixer::handleExtendCircuitCall(ExtendCircuitCall* msg) {
@@ -512,12 +511,11 @@ void TrafficMixer::handleExtendCircuitCall(ExtendCircuitCall* msg) {
     EV << "    Storing CircuitID: " << circuitID.toString() << endl;
     extCircuits[circuitID] = relay;
 
-    // TODO: uncomment
-//    StorePeerHandleCall* msgToTier3 = new StorePeerHandleCall();
-//    msgToTier3->setHandle(srcNode);
-//    msgToTier3->setCert(prevNodeCert);
-//    msgToTier3->setCommand(loki::STORE_LOCALLY);
-//    sendInternalRpcCall(TIER3_COMP, msgToTier3);
+    StorePeerHandleCall* msgToTier3 = new StorePeerHandleCall();
+    msgToTier3->setHandle(srcNode);
+    msgToTier3->setCert(prevNodeCert);
+    msgToTier3->setCommand(loki::STORE_LOCALLY);
+    sendInternalRpcCall(TIER3_COMP, msgToTier3);
 }
 
 void TrafficMixer::handleOnionMessage(OnionMessage* msg) {
@@ -590,6 +588,8 @@ void TrafficMixer::handleOnionResponse(cPacket* msg, OverlayKey circuitID) {
     BuildCircuitResponse* bcrMsg = dynamic_cast<BuildCircuitResponse*>(msg);
     if(udpMsg) {
         EV << "    Received a response from the target server" << endl;
+        cancelEvent(requestTimer);
+        scheduleAt(simTime() + SimTime::parse("5s"), requestTimer);
     } else if(bcrMsg) {
         handleBuildCircuitResponse(bcrMsg, circuitID);
     } else {
