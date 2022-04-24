@@ -15,7 +15,6 @@ class Conductor : public BaseOverlay {
      */
 
     public:
-        char* publicKey;
         static NodeHandle networkController;
 
         virtual ~Conductor() {};

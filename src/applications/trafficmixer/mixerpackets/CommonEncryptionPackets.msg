@@ -2,13 +2,6 @@ cplusplus {{
 #include "common/BinaryValue.h"
 #include "common/OverlayKey.h"
 
-using std::string;
-    
-    
-inline string generateRandomKey(int offset = 0) {
-    BinaryValue seed = BinaryValue(simTime().inUnit(SIMTIME_MS) + offset);
-    return OverlayKey::sha1(seed).toString();
-}
 }}
 
 

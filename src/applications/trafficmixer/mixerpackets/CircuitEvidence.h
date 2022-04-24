@@ -3,6 +3,9 @@
 
 #include "CircuitEvidenceBase_m.h"
 #include "CircuitBuildingMessages_m.h"
+#include "ExtendCircuitCall.h"
+#include "CreateCircuitCall.h"
+#include "jsoncpp/json/json.h"
 
 
 class Controller;
@@ -15,6 +18,7 @@ class CircuitEvidence : public CircuitEvidence_Base {
      * origin.
      */
     public:
+
         // overridden
         CircuitEvidence(const char *name=nullptr) : CircuitEvidence_Base(name) {}
         CircuitEvidence(const CircuitEvidence& other) : CircuitEvidence_Base(other) {}
@@ -23,34 +27,38 @@ class CircuitEvidence : public CircuitEvidence_Base {
         virtual CircuitEvidence *dup() const {return new CircuitEvidence(*this);}
 
 
-        CircuitEvidence(EvidenceType type, cPacket* request,
+        CircuitEvidence(EvidenceType type, string jsonCall,
                         Certificate producerCert,
                         AsymmetricEncryptionFlag producerSignature,
-                        OverlayKey circuitID) {
+                        OverlayKey circuitID,
+                        simtime_t timestamp) {
             this->type = type;
             this->producerCert = producerCert;
             this->producerSignature = producerSignature;
             this->circuitID = circuitID;
-            this->encapsulate(request);
+            this->jsonCall = jsonCall.c_str();
+            this->timestamp = timestamp;
         }
 
-        CircuitEvidence(CreateCircuitRequest request, Certificate producerCert,
+        CircuitEvidence(CreateCircuitCall request, Certificate producerCert,
                         AsymmetricEncryptionFlag producerSignature) :
         CircuitEvidence(
                 CIRCUIT_CREATION,
-                &request,
+                request.toJsonString(),
                 producerCert,
                 producerSignature,
-                OverlayKey::sha1(BinaryValue(&request))) { }
+                OverlayKey::random(),
+                simTime()) { }
 
-        CircuitEvidence(ExtendCircuitRequest request, Certificate producerCert,
+        CircuitEvidence(ExtendCircuitCall request, Certificate producerCert,
                         AsymmetricEncryptionFlag producerSignature) :
         CircuitEvidence(
                 CIRCUIT_EXTENSION,
-                &request,
+                request.toJsonString(),
                 producerCert,
                 producerSignature,
-                OverlayKey::sha1(BinaryValue(&request))) { }
+                OverlayKey::random(),
+                simTime()) { }
 
         bool isAuthenticated() {
             return producerCert.getIsSigned() &&
@@ -60,11 +68,65 @@ class CircuitEvidence : public CircuitEvidence_Base {
                    );
         }
 
+        BaseCallMessage* getExtendCircuitCallEvidence() {
+            BaseCallMessage* call;
+            if(type == CIRCUIT_EXTENSION) {
+                call = getExtendCircuitCallFromJSON(jsonCall.c_str()).dup();
+            } else {
+                call = getCreateCircuitCallFromJSON(jsonCall.c_str()).dup();
+            }
+
+            return call;
+        }
+
+        string toJsonString() {
+            Json::Value obj;
+            obj["type"] = type;
+            obj["producerCert"] = producerCert.toJsonString();
+            obj["producerSignature"] = producerSignature.toJsonString();
+            obj["circuitID"] = circuitID.toString();
+            obj["jsonCall"] = jsonCall.c_str();
+            obj["timestampRaw"] = (int)timestamp.raw();
+
+            Json::StreamWriterBuilder builder;
+            return Json::writeString(builder, obj);
+        }
+
     private:
         void decrypt() {
             setIsEncrypted(false);
         }
 };
 
+
+inline CircuitEvidence getCircuitEvidenceFromJSON(string jsonStr) {
+    Json::Value obj;
+    Json::Reader reader;
+    reader.parse(jsonStr, obj);
+
+
+    EvidenceType type = static_cast<EvidenceType>(obj["type"].asInt());
+
+    string jsonProducerCert = obj["producerCert"].asString();
+    Certificate producerCert = getCertificateFromJSON(jsonProducerCert);
+
+    string jsonProducerSignature = obj["producerSignature"].asString();
+    AsymmetricEncryptionFlag producerSignature =
+            getAsymmetricEncryptionFlagFromJSON(jsonProducerSignature);
+
+    string strCircuitID = obj["circuitID"].asString();
+    OverlayKey circuitID = OverlayKey(strCircuitID);
+
+    string jsonCall = obj["jsonCall"].asString();
+
+    int64_t rawTimestamp = obj["timestampRaw"].asInt64();
+    simtime_t timestamp = SimTime::fromRaw(rawTimestamp);
+
+
+    CircuitEvidence evidence = CircuitEvidence(type, jsonCall, producerCert,
+                                               producerSignature, circuitID,
+                                               timestamp);
+    return evidence;
+}
 
 #endif

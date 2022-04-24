@@ -4,19 +4,15 @@ import oversim.common.ITier;
 package oversim.applications.trafficmixer;
 
 
-simple TrafficMixer extends BaseApp
-{
+simple TargetServer extends BaseApp {
     parameters:
-        @class(TrafficMixer);
-        int poolSize = 10;
-        int numCircuits = 3;
+        @class(TargetServer);
         string dataTransferMode @enum("bytecount","object","bytestream") = default("object");    // tcp dataTransferMode
 }
 
 
-module TrafficMixerModules like ITier
-{
-    @display("bgb=298,190");
+module TargetServerModules like ITier {
+    @display("i=device/server");
     gates:
         input udpIn;             // gate from the UDP layer
         output udpOut;           // gate to the UDP layer
@@ -27,18 +23,16 @@ module TrafficMixerModules like ITier
         input trace_in;          // gate for trace file commands
         input tcpIn;             // gate from the TCP layer
         output tcpOut;           // gate to the TCP layer
-
+        
     submodules:
-        mix: TrafficMixer {
-
-            @display("p=144,84");
+        server: TargetServer {
+            parameters:
+                @display("p=60,60");
         }
+        
     connections allowunconnected:
-        from_lowerTier --> mix.from_lowerTier;
-        to_lowerTier <-- mix.to_lowerTier;
-        udpIn --> mix.udpIn;
-        udpOut <-- mix.udpOut;
-        tcpIn --> mix.tcpIn;
-        tcpOut <-- mix.tcpOut;
-        trace_in --> mix.trace_in;
+        udpIn --> server.udpIn;
+        udpOut <-- server.udpOut;
+        tcpIn --> server.tcpIn;
+        tcpOut <-- server.tcpOut;
 }

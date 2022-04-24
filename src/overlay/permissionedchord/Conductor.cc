@@ -23,7 +23,6 @@ void Conductor::initializeOverlay(int stage) {
      */
     if(stage != MIN_STAGE_OVERLAY) return;
 
-    thisNode.setKey( OverlayKey::random() );
     Conductor::networkController = thisNode;
 
     changeState(READY);

@@ -70,6 +70,7 @@ class BaseOverlay : public cListener,
     friend class RecursiveLookup;
     friend class BootstrapList;
     friend class SendToKeyListener;
+    friend class TrafficMixer;
 
     //------------------------------------------------------------------------
     //--- Construction / Destruction -----------------------------------------

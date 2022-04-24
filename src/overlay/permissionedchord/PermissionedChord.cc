@@ -36,6 +36,7 @@
 #include "tier2/dhtmediator/DHTMediator.h"
 
 
+
 namespace loki {
 
 using namespace std;
@@ -329,6 +330,31 @@ bool PermissionedChord::handleRpcCall(BaseCallMessage* msg)
            << "    Received RPC call and state != READY"
            << endl;
         return false;
+    }
+
+    JoinCall* joinCall = dynamic_cast<JoinCall*>(msg);
+    //NotifyCall* notifyCall = dynamic_cast<NotifyCall*>(msg);
+    //StabilizeCall* stabilizeCall = dynamic_cast<StabilizeCall*>(msg);
+    //FixfingersCall* fixfingersCall = dynamic_cast<FixfingersCall*>(msg);
+    if(joinCall) {
+        if(!thisNode.isUnspecified() && !msg->getSrcNode().isUnspecified()) {
+            if(msg->getSrcNode() != thisNode) {
+                EV << "-- SHARING CALL WITH TRAFFICMIXER --" << endl;
+
+                StorePeerHandleCall* msgToTier3 = new StorePeerHandleCall();
+                msgToTier3->setHandle(msg->getSrcNode());
+
+                if(joinCall) {
+                    Certificate cert = joinCall->getCert();
+                    msgToTier3->setCert(cert);
+                    msgToTier3->setCommand(STORE_LOCALLY);
+                } else {
+                    msgToTier3->setCommand(GET_FROM_DHT);
+                }
+
+                sendInternalRpcCall(TIER3_COMP, msgToTier3);
+            }
+        }
     }
 
     // delegate messages
@@ -805,6 +831,8 @@ void PermissionedChord::handleRegistrationTimerExpired(cMessage* msg) {
     // call JOIN RPC
     RegistrationCall* call = new RegistrationCall("RegistrationCall");
     call->setBitLength(REGISTRATIONCALL_L(call));
+    double seed = uniform(0, 1);
+    call->setCert(generateNewCertificate(seed));
 
     sendUdpRpcCall(certificateAuthority, call);
 

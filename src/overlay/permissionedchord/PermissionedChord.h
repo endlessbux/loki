@@ -47,6 +47,7 @@ class ChordFingerTable;
  */
 class PermissionedChord : public BaseOverlay, public ProxListener
 {
+    friend class TrafficMixer;
 public:
     Certificate cert;
 

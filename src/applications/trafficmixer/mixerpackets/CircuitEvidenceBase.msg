@@ -26,4 +26,5 @@ packet CircuitEvidence {
     AsymmetricEncryptionFlag producerSignature;
     simtime_t timestamp;
     OverlayKey circuitID;
+    string jsonCall;
 }

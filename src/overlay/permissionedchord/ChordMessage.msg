@@ -58,6 +58,25 @@ enum ChordCommand
     NEWSUCCESSORHINT = 0;
 }
 
+
+enum StoreCommand {
+    GET_FROM_DHT = 0;
+    STORE_LOCALLY = 1;
+}
+
+
+packet StorePeerHandleCall extends ::BaseCallMessage {
+    int command enum(StoreCommand);
+    NodeHandle handle;
+    Certificate cert;
+}
+
+
+packet StoreOwnCertificateCall extends ::BaseCallMessage {
+
+}
+
+
 //
 // Base message for all messages used by Chord
 //

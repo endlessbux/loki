@@ -1,0 +1,20 @@
+cplusplus {{
+#include "common/TransportAddress.h"
+#include "common/CommonMessages_m.h"
+}}
+
+class noncobject TransportAddress;
+class BaseCallMessage;
+class BaseResponseMessage;
+
+
+packet TCPCall extends BaseCallMessage
+{
+    TransportAddress senderAddress;  // address of the node that sent the message
+    TransportAddress targetAddress;
+}
+
+packet TCPResponse extends BaseResponseMessage
+{
+    
+}

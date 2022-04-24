@@ -2,12 +2,14 @@ cplusplus {{
 #include "common/OverlayKey.h"
 #include "common/BinaryValue.h"
 #include "SymmetricEncryptionFlag.h"
+#include "common/CommonMessages_m.h"
 }}
 
 
 class noncobject OverlayKey;
 class noncobject SymmetricEncryptionFlag;
-class BinaryValue extends cObject;
+class BaseCallMessage;
+class BaseResponseMessage;
 
 
 enum TrafficDirection {
@@ -16,9 +18,14 @@ enum TrafficDirection {
 };
 
 
-packet OnionMessage {
+packet OnionMessage extends BaseCallMessage {
     @customize(true);
     int direction @enum(TrafficDirection);
     OverlayKey circuitID;
     SymmetricEncryptionFlag encryptionFlag;
 };
+
+packet OnionCheck extends BaseResponseMessage {
+
+}
+

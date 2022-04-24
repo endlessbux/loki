@@ -19,13 +19,18 @@ import oversim.common.BaseOverlay;
 import oversim.common.IOverlay;
 
 
-simple Conductor extends BaseOverlay {
+simple Conductor extends BaseOverlay
+{
     parameters:
         @class(Conductor);
+        @display("i=block/table2");
+        string dataTransferMode @enum("bytecount","object","bytestream") = default("object");    // tcp dataTransferMode
 }
 
 
-module OverlayConductor like IOverlay {
+module OverlayConductor like IOverlay
+{
+    @display("i=device/server");
     gates:
         input udpIn; // gate from the UDP layer
         output udpOut; // gate to the UDP layer
