@@ -159,7 +159,7 @@ cPacket* CircuitManager::unwrapPayload(OnionMessage* msg) {
 }
 
 
-void CircuitManager::handleTcpResponse(TCPResponse* response) {
+void CircuitManager::handleUDPResponse(UDPResponse* response) {
     printLog("handleTcpResponse");
 }
 

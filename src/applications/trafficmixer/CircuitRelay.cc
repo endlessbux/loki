@@ -131,9 +131,8 @@ void CircuitRelay::handleOnionMessage(OnionMessage* msg) {
 }
 
 
-void CircuitRelay::handleExitResponse(TCPResponse* msg) {
+void CircuitRelay::handleExitResponse(UDPResponse* msg) {
     printLog("handleExitResponse");
-    mix->closeTcpConnection((TransportAddress)msg->getSrcNode());
     wrapAndRelay(msg);
 }
 
@@ -207,20 +206,13 @@ void CircuitRelay::sendExitRequest(OnionMessage* msg) {
            << " aborting..." << endl;
         return;
     }
-    TCPCall* tcpCall = dynamic_cast<TCPCall*>(payload);
-    if(tcpCall) {
+    UDPCall* udpCall = dynamic_cast<UDPCall*>(payload);
+    if(udpCall) {
         EV << "    Sending exit request to target server..." << endl;
         TransportAddress sender = mix->getThisNode();
-        sender.setPort(TargetServer::tcpPort);
-        TransportAddress target = tcpCall->getTargetAddress();
-        tcpCall->setSrcNode(sender);
-
-        EV << "    Establishing TCP connection with target server: "
-           << target.getIp().str() << ":" << target.getPort() << endl;
-        mix->establishTcpConnection(target);
-
-        EV << "    Sending TCP data over established connection..." << endl;
-        mix->sendTcpData(tcpCall, target);
+        sender.setPort(TargetServer::port);
+        udpCall->setSrcNode(sender);
+        mix->sendExitRequest(getCircuitID(), udpCall);
         return;
     }
 

@@ -15,7 +15,7 @@
 #include "mixerpackets/Certificate.h"
 #include "mixerpackets/CircuitEvidence.h"
 #include "mixerpackets/OnionMessage.h"
-#include "mixerpackets/TCPMessage_m.h"
+#include "mixerpackets/UDPMessage_m.h"
 #include "applications/trafficmixer/CircuitRelay.h"
 #include "applications/trafficmixer/CircuitManager.h"
 #include "TargetServer.h"
@@ -62,11 +62,13 @@ class TrafficMixer : public BaseApp {
         virtual void changeState(int toState);
 
         uint32_t sendUdpRpcCall(TransportAddress dest,
-                                       BaseCallMessage* msg,
-                                       cObject* context = NULL,
-                                       simtime_t timeout = -1,
-                                       int retries = 0, int rpcId = -1,
-                                       RpcListener* rpcListener = NULL);
+                                BaseCallMessage* msg,
+                                cObject* context = NULL,
+                                simtime_t timeout = -1,
+                                int retries = 0, int rpcId = -1,
+                                RpcListener* rpcListener = NULL);
+
+        void sendExitRequest(OverlayKey circuitID, UDPCall* udpCall);
 
         void internalHandleRpcMessage(BaseRpcMessage* msg) override;
 
@@ -109,8 +111,8 @@ class TrafficMixer : public BaseApp {
 
         map<NodeHandle, Certificate> relayPool;
         map<OverlayKey, CircuitManager> ownCircuits;
-        map<OverlayKey, CircuitRelay> extCircuits;
-        map<int, OverlayKey> pendingTcpRequests;
+        map<OverlayKey, CircuitRelay*> extCircuits;
+        map<int, OverlayKey> pendingUDPRequests;
 
 
         // statistics
@@ -160,7 +162,7 @@ class TrafficMixer : public BaseApp {
 
         void handleBuildCircuitResponse(BuildCircuitResponse* msg, OverlayKey circuitID);
 
-        void handleTCPResponse(TCPResponse* msg);
+        void handleUDPResponse(UDPResponse* msg);
 
 
         // Timeouts from TrafficMixer:  CreateCircuitCall, ExtendCircuitCall,
@@ -215,7 +217,10 @@ class TrafficMixer : public BaseApp {
         }
 
         StoredCall getCallFromResponse(BaseResponseMessage* response) {
+            printLog("getCallFromResponse");
             int nonce = response->getNonce();
+            EV << "    Received nonce: " << nonce << endl;
+
             if(isNoncePending(nonce)) {
                 StoredCall retrievedCall = pendingRpcCalls[nonce];
                 pendingRpcCalls.erase(nonce);
@@ -271,13 +276,13 @@ class TrafficMixer : public BaseApp {
                << message << "]" << endl;
         }
 
-        TCPCall* buildTCPCall();
+        UDPCall* buildUDPCall();
 
-        TCPResponse* buildTCPResponse();
+        UDPResponse* buildUDPResponse();
 
-        void sendTcpPing(TransportAddress* addr);
+        void sendUDPPing(TransportAddress* addr);
 
-        void handleTcpPong(TCPResponse* tcpMsg);
+        void handleUDPPong(UDPResponse* tcpMsg);
 
         NodeHandle getNextSelectedRelay() {
             NodeHandle node = selectedNodes[selectedNodes.size() - 1];

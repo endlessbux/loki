@@ -6,7 +6,7 @@
 #include "applications/trafficmixer/mixerpackets/Certificate.h"
 #include "applications/trafficmixer/mixerpackets/CircuitMaintenanceMessages_m.h"
 #include "applications/trafficmixer/mixerpackets/CircuitBuildingMessages_m.h"
-#include "applications/trafficmixer/mixerpackets/TCPMessage_m.h"
+#include "applications/trafficmixer/mixerpackets/UDPMessage_m.h"
 
 
 
@@ -41,7 +41,7 @@ class CircuitManager {
         void handleFailure(NodeHandle failedNode);
         void handleBuildCircuitResponse(BuildCircuitResponse* msg);
         cPacket* unwrapPayload(OnionMessage* msg);
-        void handleTcpResponse(TCPResponse* response);
+        void handleUDPResponse(UDPResponse* response);
 
     private:
         cPacket* peelOnionMessage(OnionMessage* msg);

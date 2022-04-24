@@ -1,12 +1,12 @@
 #include "TargetServer.h"
-#include "mixerpackets/TCPMessage_m.h"
+#include "mixerpackets/UDPMessage_m.h"
 
 
 Define_Module(TargetServer);
 
 
-NodeHandle TargetServer::address = NodeHandle::UNSPECIFIED_NODE;
-int TargetServer::tcpPort = 24000;
+TransportAddress TargetServer::address = TransportAddress::UNSPECIFIED_NODE;
+int TargetServer::port = 24000;
 
 TargetServer::TargetServer() {
 
@@ -23,10 +23,10 @@ void TargetServer::initializeApp(int stage) {
         return;
     }
 
-    thisNode.setPort(TargetServer::tcpPort);
+    thisNode.setPort(TargetServer::port);
     TargetServer::address = thisNode;
 
-    bindAndListenTcp(TargetServer::tcpPort);
+    bindToPort(TargetServer::port);
 }
 
 
@@ -35,16 +35,24 @@ void TargetServer::finishApp() {
 }
 
 
-void TargetServer::handleDataReceived(TransportAddress address, cPacket* msg, bool urgent) {
-    printLog("handleDataReceived");
-    TCPCall* callMsg = dynamic_cast<TCPCall*>(msg);
+void TargetServer::handleUDPMessage(cMessage* msg) {
+    printLog("handleUDPMessage");
+}
+
+
+bool TargetServer::internalHandleRpcCall(BaseCallMessage* msg) {
+    printLog("internalHandleRpcCall");
+    UDPCall* callMsg = dynamic_cast<UDPCall*>(msg);
     if(!callMsg) {
         EV << "    Received an unknown message; aborting..." << endl;
-        return;
+        return false;
     }
-    EV << "    Received a message from: " << address.getIp().str()
+    NodeHandle srcNode = callMsg->getSrcNode();
+    EV << "    Received a message from: " << srcNode.getIp().str()
        << ";\n    sending a response..." << endl;
-    TCPResponse* responseMsg = new TCPResponse();
+    UDPResponse* responseMsg = new UDPResponse();
     responseMsg->setNonce(callMsg->getNonce());
-    sendTcpData(responseMsg, address);
+    sendRpcResponse(callMsg, responseMsg);
+
+    return true;
 }

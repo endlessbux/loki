@@ -8,13 +8,13 @@ class BaseCallMessage;
 class BaseResponseMessage;
 
 
-packet TCPCall extends BaseCallMessage
+packet UDPCall extends BaseCallMessage
 {
     TransportAddress senderAddress;  // address of the node that sent the message
     TransportAddress targetAddress;
 }
 
-packet TCPResponse extends BaseResponseMessage
+packet UDPResponse extends BaseResponseMessage
 {
     
 }

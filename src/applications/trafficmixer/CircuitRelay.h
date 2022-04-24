@@ -11,7 +11,7 @@
 #include "mixerpackets/CircuitMaintenanceMessages_m.h"
 #include "mixerpackets/CircuitBuildingMessages_m.h"
 #include "mixerpackets/CircuitEvidence.h"
-#include "mixerpackets/TCPMessage_m.h"
+#include "mixerpackets/UDPMessage_m.h"
 
 
 using namespace std;
@@ -48,6 +48,7 @@ class CircuitRelay {
         void setNextNode(NodeHandle node) { nextNode = node; };
         bool isExitNode() { return nextNode.isUnspecified(); };
         OverlayKey getCircuitID() { return evidence.getCircuitID(); };
+        OverlayKey getNextCircuitID() { return nextCircuitID; };
 
     protected:
         void leave();
@@ -55,7 +56,7 @@ class CircuitRelay {
         void handleDestroyCircuitCall(DestroyCircuitCall* msg);
         void handleNotifyCircuitResponse(NotifyCircuitResponse* msg);
         void handleOnionMessage(OnionMessage* msg);
-        void handleExitResponse(TCPResponse* msg);
+        void handleExitResponse(UDPResponse* msg);
         void handleFailure(NodeHandle failedNode);
         void propagateKeepAliveCall();
         void propagateDestroyCircuitCall();

@@ -9,15 +9,16 @@ using namespace std;
 
 class TargetServer : public BaseApp {
     public:
-        static int tcpPort;
-        static NodeHandle address;
+        static int port;
+        static TransportAddress address;
 
 
         TargetServer();
         ~TargetServer();
         virtual void initializeApp(int stage);
         virtual void finishApp();
-        virtual void handleDataReceived(TransportAddress address, cPacket* msg, bool urgent);
+        virtual bool internalHandleRpcCall(BaseCallMessage* msg) override;
+        virtual void handleUDPMessage(cMessage* msg) override;
         void printLog(string functionName) {
             EV << "[TargetServer::" << functionName
                << " @ " << thisNode.getIp().str()

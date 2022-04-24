@@ -7,33 +7,6 @@ using loki::StorePeerHandleCall;
 using loki::StoreOwnCertificateCall;
 
 
-// CIRCUIT HANDLING
-//void Circuit::destroy() {
-//    // Send DestroyCircuitCall to nodes
-//}
-//
-//void Circuit::handleOnionMessage(OnionMessage* msg) {
-//    if(isExitNode())
-//        handleExitRequest(msg);
-//    else
-//        relayMessage(msg);
-//
-//    TrafficMixer::sendUdpRpcCall(dest, msg);
-//}
-//
-//void Circuit::handleExitRequest(OnionMessage* msg) {
-//    cPacket* packet = msg->peel(symmetricKey);
-//    if(packet) {
-//
-//    }
-//}
-//
-//void Circuit::relayMessage(OnionMessage* msg) {
-//
-//}
-
-// END OF CIRCUIT HANDLING
-
 Define_Module(TrafficMixer);
 
 TrafficMixer::TrafficMixer() {
@@ -82,7 +55,6 @@ void TrafficMixer::initializeApp(int stage) {
     buildCircuitTimer = new cMessage("Build Circuit Timer");
 
     bindToPort(applicationPort);
-    bindAndListenTcp(TargetServer::tcpPort);
 }
 
 
@@ -111,7 +83,7 @@ void TrafficMixer::sendRequestToTarget() {
         return;
     }
 
-    TCPCall* request = new TCPCall();
+    UDPCall* request = new UDPCall();
     request->setTargetAddress(TargetServer::address);
     int randInt = intuniform(0, ownCircuits.size() - 1);
     map<OverlayKey, CircuitManager>::iterator it = ownCircuits.begin();
@@ -214,6 +186,17 @@ uint32_t TrafficMixer::sendUdpRpcCall(TransportAddress dest,
 }
 
 
+void TrafficMixer::sendExitRequest(OverlayKey circuitID, UDPCall* udpCall) {
+    printLog("sendExitRequest");
+
+    TransportAddress target = udpCall->getTargetAddress();
+    int nonce = BaseApp::sendUdpRpcCall(target, udpCall);
+    pendingUDPRequests[nonce] = circuitID;
+
+    EV << "    Stored nonce: " << nonce << endl;
+}
+
+
 void TrafficMixer::internalHandleRpcMessage(BaseRpcMessage* msg) {
     printLog("internalHandleRpcMessage");
 
@@ -260,6 +243,9 @@ void TrafficMixer::internalHandleRpcMessage(BaseRpcMessage* msg) {
     RPC_ON_RESPONSE(NotifyCircuit) {
         handleNotifyCircuitResponse(_NotifyCircuitResponse);
         return;
+    }
+    RPC_ON_RESPONSE(UDP) {
+        handleUDPResponse(_UDPResponse);
     }
     RPC_DELEGATE(CreateCircuit, handleCreateCircuitCall)
     RPC_DELEGATE(ExtendCircuit, handleExtendCircuitCall)
@@ -424,11 +410,11 @@ void TrafficMixer::handleUDPMessage(cMessage* msg) {
 void TrafficMixer::handleDataReceived(TransportAddress address, cPacket* msg, bool urgent) {
     printLog("handleDataReceived");
 
-    TCPResponse* response = dynamic_cast<TCPResponse*>(msg);
+    UDPResponse* response = dynamic_cast<UDPResponse*>(msg);
     OnionMessage* onionMsg = dynamic_cast<OnionMessage*>(msg);
 
     if(response) {
-        handleTCPResponse(response);
+        handleUDPResponse(response);
     } else if(onionMsg) {
         handleOnionMessage(onionMsg);
     } else {
@@ -500,8 +486,8 @@ void TrafficMixer::handleCreateCircuitCall(CreateCircuitCall* msg) {
     printLog("handleCreateCircuitCall");
     string privateKey = getOwnCertificate().getKeySet().getPrivateKey();
     EV << "    Generating Circuit information..." << endl;
-    CircuitRelay relay = CircuitRelay(this, msg, privateKey);
-    OverlayKey circuitID = relay.getCircuitID();
+    CircuitRelay* relay = new CircuitRelay(this, msg, privateKey);
+    OverlayKey circuitID = relay->getCircuitID();
     EV << "    Storing CircuitID: " << circuitID.toString() << endl;
     extCircuits[circuitID] = relay;
 
@@ -521,8 +507,8 @@ void TrafficMixer::handleExtendCircuitCall(ExtendCircuitCall* msg) {
 
     string privateKey = getOwnCertificate().getKeySet().getPrivateKey();
     EV << "    Generating relay information..." << endl;
-    CircuitRelay relay = CircuitRelay(this, msg, privateKey);
-    OverlayKey circuitID = relay.getCircuitID();
+    CircuitRelay* relay = new CircuitRelay(this, msg, privateKey);
+    OverlayKey circuitID = relay->getCircuitID();
     EV << "    Storing CircuitID: " << circuitID.toString() << endl;
     extCircuits[circuitID] = relay;
 
@@ -544,10 +530,11 @@ void TrafficMixer::handleOnionMessage(OnionMessage* msg) {
         handleOnionResponse(payload, circuitID);
     } else if(extCircuits.find(circuitID) != extCircuits.end()) {
         EV << "    Received OnionMessage from external circuit" << endl;
-        extCircuits[circuitID].handleOnionMessage(msg);
+        extCircuits[circuitID]->handleOnionMessage(msg);
     } else if(isBuildingCircuit) {
         EV << "    Received OnionMessage from pending circuit" << endl;
         cPacket* payload = pendingCircuit.unwrapPayload(msg);
+        assert(payload);
         if(payload)
             handleOnionResponse(payload, circuitID);
         else
@@ -562,7 +549,7 @@ void TrafficMixer::handleKeepAliveCall(KeepAliveCall* msg) {
     if(extCircuits.find(circuitID) == extCircuits.end()) {
         return;
     }
-    extCircuits[circuitID].propagateKeepAliveCall();
+    extCircuits[circuitID]->propagateKeepAliveCall();
 }
 
 void TrafficMixer::handleRelayDisconnectCall(RelayDisconnectCall* msg) {
@@ -571,7 +558,7 @@ void TrafficMixer::handleRelayDisconnectCall(RelayDisconnectCall* msg) {
         return;
     }
     NodeHandle disconnectedNode = msg->getDisconnectedNode();
-    extCircuits[circuitID].propagateRelayDisconnectCall(disconnectedNode);
+    extCircuits[circuitID]->propagateRelayDisconnectCall(disconnectedNode);
 }
 
 void TrafficMixer::handleDestroyCircuitCall(DestroyCircuitCall* msg) {
@@ -579,7 +566,7 @@ void TrafficMixer::handleDestroyCircuitCall(DestroyCircuitCall* msg) {
     if(extCircuits.find(circuitID) == extCircuits.end()) {
         return;
     }
-    extCircuits[circuitID].propagateDestroyCircuitCall();
+    extCircuits[circuitID]->propagateDestroyCircuitCall();
     extCircuits.erase(circuitID);
 }
 
@@ -588,7 +575,9 @@ void TrafficMixer::handleNotifyCircuitResponse(NotifyCircuitResponse* msg) {
     OverlayKey circuitID = msg->getPrevCircuitID();
     assert(extCircuits.find(circuitID) != extCircuits.end());
 
-    extCircuits[circuitID].handleNotifyCircuitResponse(msg);
+    CircuitRelay* relay = extCircuits[circuitID];
+    relay->handleNotifyCircuitResponse(msg);
+    extCircuits[relay->getNextCircuitID()] = relay;
 }
 
 void TrafficMixer::handleKeepAliveResponse(KeepAliveResponse* msg) {
@@ -597,9 +586,9 @@ void TrafficMixer::handleKeepAliveResponse(KeepAliveResponse* msg) {
 
 void TrafficMixer::handleOnionResponse(cPacket* msg, OverlayKey circuitID) {
     printLog("handleOnionResponse");
-    TCPResponse* tcpMsg = dynamic_cast<TCPResponse*>(msg);
+    UDPResponse* udpMsg = dynamic_cast<UDPResponse*>(msg);
     BuildCircuitResponse* bcrMsg = dynamic_cast<BuildCircuitResponse*>(msg);
-    if(tcpMsg) {
+    if(udpMsg) {
         EV << "    Received a response from the target server" << endl;
     } else if(bcrMsg) {
         handleBuildCircuitResponse(bcrMsg, circuitID);
@@ -631,18 +620,18 @@ void TrafficMixer::handleBuildCircuitResponse(BuildCircuitResponse* msg, Overlay
 }
 
 
-void TrafficMixer::handleTCPResponse(TCPResponse* msg) {
+void TrafficMixer::handleUDPResponse(UDPResponse* msg) {
     printLog("handleTCPResponse");
     int nonce = msg->getNonce();
-    if(pendingTcpRequests.find(nonce) == pendingTcpRequests.end()) {
+    if(pendingUDPRequests.find(nonce) == pendingUDPRequests.end()) {
         EV << "    The received nonce doesn't correspond to a pending call; "
            << "aborting..." << endl;
         return;
     }
-    OverlayKey circuitID = pendingTcpRequests[nonce];
-    pendingTcpRequests.erase(nonce);
-    CircuitRelay relay = extCircuits[circuitID];
-    relay.handleExitResponse(msg);
+    OverlayKey circuitID = pendingUDPRequests[nonce];
+    pendingUDPRequests.erase(nonce);
+    CircuitRelay* relay = extCircuits[circuitID];
+    relay->handleExitResponse(msg);
 }
 
 
@@ -707,39 +696,39 @@ void TrafficMixer::getCertificate(NodeHandle handle) {
     putCallInPendingList(call, nonce);
 }
 
-TCPCall* TrafficMixer::buildTCPCall() {
-    TCPCall* tcpMsg = new TCPCall();
-    tcpMsg->setSenderAddress(thisNode);
-    tcpMsg->setByteLength(100);
-    tcpMsg->setKind(4);
-    return tcpMsg;
+UDPCall* TrafficMixer::buildUDPCall() {
+    UDPCall* udpMsg = new UDPCall();
+    udpMsg->setSenderAddress(thisNode);
+    udpMsg->setByteLength(100);
+    udpMsg->setKind(4);
+    return udpMsg;
 }
 
-TCPResponse* TrafficMixer::buildTCPResponse() {
-    TCPResponse* tcpMsg = new TCPResponse();
-    tcpMsg->setByteLength(100);
-    tcpMsg->setKind(4);
-    return tcpMsg;
+UDPResponse* TrafficMixer::buildUDPResponse() {
+    UDPResponse* udpMsg = new UDPResponse();
+    udpMsg->setByteLength(100);
+    udpMsg->setKind(4);
+    return udpMsg;
 }
 
-void TrafficMixer::sendTcpPing(TransportAddress* addr) {
+void TrafficMixer::sendUDPPing(TransportAddress* addr) {
     printLog("sendTcpPing");
     RECORD_STATS(numSent++);
     RECORD_STATS(numTcpRequests++);
 
     TransportAddress remoteAddress = TransportAddress(addr->getIp(), 24000);
-    TCPCall* tcpMsg = buildTCPCall();
+    UDPCall* tcpMsg = buildUDPCall();
     establishTcpConnection(remoteAddress);
     sendTcpData(tcpMsg, remoteAddress);
     EV << thisNode.getIp() << ": Connecting to "<< addr->getIp()
        << " and sending PING."<< std::endl;
 }
 
-void TrafficMixer::handleTcpPong(TCPResponse* tcpMsg) {
-    if(pendingTcpRequests.find(tcpMsg->getNonce()) == pendingTcpRequests.end()) {
+void TrafficMixer::handleUDPPong(UDPResponse* udpMsg) {
+    if(pendingUDPRequests.find(udpMsg->getNonce()) == pendingUDPRequests.end()) {
         return;
     }
-    OverlayKey circuitID = pendingTcpRequests[tcpMsg->getNonce()];
-    CircuitRelay relay = extCircuits[circuitID];
-    relay.handleExitResponse(tcpMsg);
+    OverlayKey circuitID = pendingUDPRequests[udpMsg->getNonce()];
+    CircuitRelay* relay = extCircuits[circuitID];
+    relay->handleExitResponse(udpMsg);
 }
