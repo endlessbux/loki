@@ -91,7 +91,7 @@ class TrafficMixer : public BaseApp {
 
         virtual void handleUDPMessage(cMessage* msg) override;
 
-        void handleDataReceived(TransportAddress address, cPacket* msg, bool urgent) override;
+        virtual void handleDataReceived(TransportAddress address, cPacket* msg, bool urgent) override;
 
     private:
         bool isOwnCertificateShared;

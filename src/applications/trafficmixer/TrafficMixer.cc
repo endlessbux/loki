@@ -544,8 +544,7 @@ void TrafficMixer::handleOnionMessage(OnionMessage* msg) {
         handleOnionResponse(payload, circuitID);
     } else if(extCircuits.find(circuitID) != extCircuits.end()) {
         EV << "    Received OnionMessage from external circuit" << endl;
-        CircuitRelay relay = extCircuits[circuitID];
-        relay.handleOnionMessage(msg);
+        extCircuits[circuitID].handleOnionMessage(msg);
     } else if(isBuildingCircuit) {
         EV << "    Received OnionMessage from pending circuit" << endl;
         cPacket* payload = pendingCircuit.unwrapPayload(msg);
@@ -563,8 +562,7 @@ void TrafficMixer::handleKeepAliveCall(KeepAliveCall* msg) {
     if(extCircuits.find(circuitID) == extCircuits.end()) {
         return;
     }
-    CircuitRelay relay = extCircuits[circuitID];
-    relay.propagateKeepAliveCall();
+    extCircuits[circuitID].propagateKeepAliveCall();
 }
 
 void TrafficMixer::handleRelayDisconnectCall(RelayDisconnectCall* msg) {
@@ -573,8 +571,7 @@ void TrafficMixer::handleRelayDisconnectCall(RelayDisconnectCall* msg) {
         return;
     }
     NodeHandle disconnectedNode = msg->getDisconnectedNode();
-    CircuitRelay relay = extCircuits[circuitID];
-    relay.propagateRelayDisconnectCall(disconnectedNode);
+    extCircuits[circuitID].propagateRelayDisconnectCall(disconnectedNode);
 }
 
 void TrafficMixer::handleDestroyCircuitCall(DestroyCircuitCall* msg) {
@@ -582,8 +579,7 @@ void TrafficMixer::handleDestroyCircuitCall(DestroyCircuitCall* msg) {
     if(extCircuits.find(circuitID) == extCircuits.end()) {
         return;
     }
-    CircuitRelay relay = extCircuits[circuitID];
-    relay.propagateDestroyCircuitCall();
+    extCircuits[circuitID].propagateDestroyCircuitCall();
     extCircuits.erase(circuitID);
 }
 
@@ -592,8 +588,7 @@ void TrafficMixer::handleNotifyCircuitResponse(NotifyCircuitResponse* msg) {
     OverlayKey circuitID = msg->getPrevCircuitID();
     assert(extCircuits.find(circuitID) != extCircuits.end());
 
-    CircuitRelay relay = extCircuits[circuitID];
-    relay.handleNotifyCircuitResponse(msg);
+    extCircuits[circuitID].handleNotifyCircuitResponse(msg);
 }
 
 void TrafficMixer::handleKeepAliveResponse(KeepAliveResponse* msg) {

@@ -31,8 +31,11 @@ module TargetServerModules like ITier {
         }
         
     connections allowunconnected:
+        from_lowerTier --> server.from_lowerTier;
+        to_lowerTier <-- server.to_lowerTier;
         udpIn --> server.udpIn;
         udpOut <-- server.udpOut;
         tcpIn --> server.tcpIn;
         tcpOut <-- server.tcpOut;
+        trace_in --> server.trace_in;
 }

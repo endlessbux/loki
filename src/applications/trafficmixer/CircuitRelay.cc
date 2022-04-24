@@ -26,6 +26,7 @@ CircuitRelay::CircuitRelay(TrafficMixer* mix, NodeHandle node,
 
 CircuitRelay::CircuitRelay(TrafficMixer* mix, CreateCircuitCall* call, string privateKey) :
 CircuitRelay(mix, call->getSrcNode(), call->getKeyExchange(), privateKey) {
+    printLog("CircuitRelay(CreateCircuitCall)");
     // create and propagate evidence
     Certificate ownCert = mix->getOwnCertificate();
     AsymmetricEncryptionFlag signature = AsymmetricEncryptionFlag(ownCert.getKeySet());
@@ -42,6 +43,7 @@ CircuitRelay(mix, call->getSrcNode(), call->getKeyExchange(), privateKey) {
 
 CircuitRelay::CircuitRelay(TrafficMixer* mix, ExtendCircuitCall* call, string privateKey) :
 CircuitRelay(mix, call->getSrcNode(), call->getKeyExchange(), privateKey) {
+    printLog("CircuitRelay(ExtendCircuitCall)");
     // create and propagate evidence
     Certificate ownCert = mix->getOwnCertificate();
     AsymmetricEncryptionFlag signature = AsymmetricEncryptionFlag(ownCert.getKeySet());
@@ -71,6 +73,7 @@ CircuitRelay(mix, call->getSrcNode(), call->getKeyExchange(), privateKey) {
  * Makes the node leave the circuit by sending a RelayDisconnectCall to its neighbours
  */
 void CircuitRelay::leave() {
+    printLog("leave");
     propagateRelayDisconnectCall(mix->getThisNode());
 }
 
@@ -88,27 +91,32 @@ void CircuitRelay::handleTriggerExtensionCall(TriggerExtensionCall* msg) {
 
 
 void CircuitRelay::handleDestroyCircuitCall(DestroyCircuitCall* msg) {
+    printLog("handleDestroyCircuitCall");
     propagateDestroyCircuitCall();
 }
 
 
 void CircuitRelay::handleNotifyCircuitResponse(NotifyCircuitResponse* msg) {
     printLog("handleNotifyCircuitResponse");
-    EV << "    Next node: " << msg->getSrcNode().getIp().str()
-       << ":" << msg->getSrcNode().getPort() << endl
-       << "    Next CircuitID: " << msg->getNextCircuitID() << endl;
-
 
     OnionMessage* onionMsg = msg->getMsg().dup();
     nextNode = msg->getSrcNode();
     nextCircuitID = msg->getNextCircuitID();
+
+    EV << "    Next node: " << nextNode.getIp().str()
+       << ":" << nextNode.getPort() << endl
+       << "    Next CircuitID: " << nextCircuitID << endl;
+
     wrapAndRelay(onionMsg);
 }
 
 
 void CircuitRelay::handleOnionMessage(OnionMessage* msg) {
     printLog("handleOnionMessage");
+    EV << "    Circuit ID: " << msg->getCircuitID() << endl;
     if(isExitNode()) {
+        EV << "    This is an exit relay: "
+           << nextNode.getIp().str() << ":" << nextNode.getPort() << endl;
         sendExitRequest(msg);
     } else if (msg->getDirection() == OUTWARD) {
         cPacket* payload = msg->peel(symmetricKey);
@@ -124,12 +132,14 @@ void CircuitRelay::handleOnionMessage(OnionMessage* msg) {
 
 
 void CircuitRelay::handleExitResponse(TCPResponse* msg) {
+    printLog("handleExitResponse");
     mix->closeTcpConnection((TransportAddress)msg->getSrcNode());
     wrapAndRelay(msg);
 }
 
 
 void CircuitRelay::handleFailure(NodeHandle failedNode) {
+    printLog("handleFailure");
     propagateRelayDisconnectCall(failedNode);
 }
 
@@ -138,6 +148,7 @@ void CircuitRelay::handleFailure(NodeHandle failedNode) {
  * Sends KeepAliveCall to next node in the circuit
  */
 void CircuitRelay::propagateKeepAliveCall() {
+    printLog("propagateKeepAliveCall");
     KeepAliveCall* keepAliveMsg = new KeepAliveCall();
     keepAliveMsg->setCircuitID(nextCircuitID);
     mix->sendUdpRpcCall(nextNode, keepAliveMsg);
@@ -145,6 +156,7 @@ void CircuitRelay::propagateKeepAliveCall() {
 
 
 void CircuitRelay::propagateDestroyCircuitCall() {
+    printLog("propagateDestroyCircuitCall");
     DestroyCircuitCall* destroyMsg = new DestroyCircuitCall();
     destroyMsg->setCircuitID(nextCircuitID);
     mix->sendUdpRpcCall(nextNode, destroyMsg);
@@ -152,6 +164,7 @@ void CircuitRelay::propagateDestroyCircuitCall() {
 
 
 void CircuitRelay::propagateRelayDisconnectCall(NodeHandle disconnectedNode) {
+    printLog("propageteRelayDisconnectCall");
     if(nextNode == disconnectedNode) {
         nextNode = NodeHandle::UNSPECIFIED_NODE;
     }
@@ -196,12 +209,17 @@ void CircuitRelay::sendExitRequest(OnionMessage* msg) {
     }
     TCPCall* tcpCall = dynamic_cast<TCPCall*>(payload);
     if(tcpCall) {
-        EV << "   Sending exit request to target server..." << endl;
+        EV << "    Sending exit request to target server..." << endl;
         TransportAddress sender = mix->getThisNode();
+        sender.setPort(TargetServer::tcpPort);
         TransportAddress target = tcpCall->getTargetAddress();
-        tcpCall->setSenderAddress(sender);
+        tcpCall->setSrcNode(sender);
 
+        EV << "    Establishing TCP connection with target server: "
+           << target.getIp().str() << ":" << target.getPort() << endl;
         mix->establishTcpConnection(target);
+
+        EV << "    Sending TCP data over established connection..." << endl;
         mix->sendTcpData(tcpCall, target);
         return;
     }
@@ -218,6 +236,7 @@ void CircuitRelay::sendExitRequest(OnionMessage* msg) {
 
 
 OnionMessage* CircuitRelay::getOnionMessage() {
+    printLog("getOnionMessage");
     OnionMessage* msg = new OnionMessage(INWARD, getCircuitID(), symmetricKey);
     msg->setSrcNode(mix->getThisNode());
     return msg;
@@ -225,6 +244,9 @@ OnionMessage* CircuitRelay::getOnionMessage() {
 
 
 void CircuitRelay::printLog(string function) {
-    mix->printLog("CircuitRelay::" + function);
+    string message = "\n    " + prevNode.getIp().str()
+                   + "-->" + nextNode.getIp().str()
+                   + " @ " + getCircuitID().toString();
+    mix->printLog("CircuitRelay::" + function, message);
 }
 
