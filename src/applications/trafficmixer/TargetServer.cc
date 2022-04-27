@@ -6,7 +6,7 @@ Define_Module(TargetServer);
 
 
 TransportAddress TargetServer::address = TransportAddress::UNSPECIFIED_NODE;
-int TargetServer::port = 24000;
+int TargetServer::port = 443;
 
 TargetServer::TargetServer() {
 
@@ -38,6 +38,11 @@ void TargetServer::finishApp() {
 void TargetServer::handleUDPMessage(cMessage* msg) {
     printLog("handleUDPMessage");
 }
+
+
+//void TargetServer::handleTimerEvent(cMessage* msg) {
+//
+//}
 
 
 bool TargetServer::internalHandleRpcCall(BaseCallMessage* msg) {

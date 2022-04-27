@@ -1,6 +1,7 @@
 #include "TrafficMixer.h"
 #include "common/GlobalNodeList.h"
 #include "overlay/permissionedchord/ChordMessage_m.h"
+#include "applications/trafficmixer/mixerpackets/TrafficReport_m.h"
 
 using namespace std;
 using loki::StorePeerHandleCall;
@@ -27,7 +28,7 @@ void TrafficMixer::initializeApp(int stage) {
     isOwnCertificateShared = false;
     certStorageRetries = 0;
     maxCertRetries = 5;
-    maxPoolSize = 5;
+    maxPoolSize = 10;
     maxOpenCircuits = 1;
     circuitLength = 2;
 
@@ -54,12 +55,16 @@ void TrafficMixer::initializeApp(int stage) {
     requestTimer = new cMessage("Request Timer");
     buildCircuitTimer = new cMessage("Build Circuit Timer");
 
+    trafficReportTimer = new cMessage("Traffic Report Timer");
+    scheduleAt(simTime() + SimTime::parse("60s"), trafficReportTimer);
+
     bindToPort(applicationPort);
 }
 
 
 void TrafficMixer::finishApp() {
     changeState(SHUTDOWN);
+    releaseTrafficHistory();
 }
 
 
@@ -67,10 +72,10 @@ void TrafficMixer::handleTimerEvent(cMessage* msg) {
     printLog("handleTimerEvent");
     if(msg == requestTimer) {
         sendRequestToTarget();
-        return;
     } else if(msg == buildCircuitTimer) {
         buildCircuit();
-        return;
+    } else if(msg == trafficReportTimer) {
+        releaseTrafficHistory();
     }
 }
 
@@ -194,6 +199,8 @@ void TrafficMixer::sendExitRequest(OverlayKey circuitID, UDPCall* udpCall) {
     pendingUDPRequests[nonce] = circuitID;
 
     EV << "    Stored nonce: " << nonce << endl;
+
+    storeTraffic(circuitID, target);
 }
 
 
@@ -249,6 +256,7 @@ void TrafficMixer::internalHandleRpcMessage(BaseRpcMessage* msg) {
     }
     RPC_DELEGATE(CreateCircuit, handleCreateCircuitCall)
     RPC_DELEGATE(ExtendCircuit, handleExtendCircuitCall)
+    RPC_DELEGATE(GetEvidence, handleGetEvidenceCall);
     RPC_SWITCH_END( )
 
     if(!rpcHandled) {
@@ -427,9 +435,8 @@ void TrafficMixer::handleDataReceived(TransportAddress address, cPacket* msg, bo
 
 void TrafficMixer::handleGetEvidenceResponse(GetEvidenceResponse* msg, GetEvidenceCall* call) {
     printLog("handleGetEvidenceResponse");
-    // common nodes can't do anything with evidence
+    sendMessageToUDP(TrustedAuthority::address, msg);
     delete call;
-    delete msg;
 }
 
 
@@ -635,6 +642,11 @@ void TrafficMixer::handleUDPResponse(UDPResponse* msg) {
 }
 
 
+void TrafficMixer::handleGetEvidenceCall(GetEvidenceCall* msg) {
+    getEvidence(msg->getCircuitID());
+}
+
+
 /**
  * Sends a PutEvidenceCall to the DHT
  *
@@ -731,4 +743,34 @@ void TrafficMixer::handleUDPPong(UDPResponse* udpMsg) {
     OverlayKey circuitID = pendingUDPRequests[udpMsg->getNonce()];
     CircuitRelay* relay = extCircuits[circuitID];
     relay->handleExitResponse(udpMsg);
+}
+
+
+void TrafficMixer::storeTraffic(OverlayKey circuitID, TransportAddress target) {
+    TrafficRecord record = TrafficRecord();
+    record.setCircuitID(circuitID);
+    record.setTarget(target);
+    record.setTimestamp(simTime());
+    exitTrafficHistory.push_back(record);
+}
+
+
+void TrafficMixer::releaseTrafficHistory() {
+    printLog("releaseTrafficHistory");
+
+    if(exitTrafficHistory.size() > 0) {
+        EV << "    Sending traffic report..." << endl;
+        TrafficReport* report = new TrafficReport();
+
+        report->setRecordsArraySize(exitTrafficHistory.size());
+        for(int i = 0; i < exitTrafficHistory.size(); i++) {
+            report->setRecords(i, exitTrafficHistory[i]);
+        }
+        sendUdpRpcCall(TrustedAuthority::address, report);
+        exitTrafficHistory = vector<TrafficRecord>();
+    } else {
+        EV << "    No recorded traffic history; rescheduling..." << endl;
+    }
+    cancelEvent(trafficReportTimer);
+    scheduleAt(simTime() + SimTime::parse("60s"), trafficReportTimer);
 }

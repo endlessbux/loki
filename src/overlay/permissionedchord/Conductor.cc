@@ -93,7 +93,11 @@ void Conductor::handleRegistration(loki::RegistrationCall* registrationMsg) {
     receivedCert.setExpiration(simTime() + 3600 * 24 * 365);
     receivedCert.sign();
 
-    // TODO: Register this data on local memory
+    // Store node information locally
+    loki::RegistrationCall* msgToTier3 = registrationMsg->dup();
+    msgToTier3->setCert(receivedCert);
+    msgToTier3->setNode(registrationMsg->getSrcNode());
+    sendInternalRpcCall(TIER3_COMP, msgToTier3);
 
     // Send response
     loki::RegistrationResponse* responseMsg = new loki::RegistrationResponse("RegistrationResponse");

@@ -13,8 +13,8 @@ class Certificate;
 
 
 enum EvidenceType {
-    CIRCUIT_CREATION = 0;
-    CIRCUIT_EXTENSION = 1;
+    CIRCUIT_CREATION = 1;
+    CIRCUIT_EXTENSION = 2;
 }
 
 

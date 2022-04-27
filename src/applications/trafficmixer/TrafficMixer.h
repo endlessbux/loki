@@ -19,11 +19,15 @@
 #include "applications/trafficmixer/CircuitRelay.h"
 #include "applications/trafficmixer/CircuitManager.h"
 #include "TargetServer.h"
+#include "TrustedAuthority.h"
+#include "mixerpackets/TrafficReport_m.h"
 
 
 using loki::PermissionedChord;
 using loki::JoinCall;
 using namespace std;
+
+//typedef tuple<OverlayKey, TransportAddress, simtime_t> TrafficRecord;
 
 
 class TrafficMixer : public BaseApp {
@@ -114,6 +118,7 @@ class TrafficMixer : public BaseApp {
         map<OverlayKey, CircuitRelay*> extCircuits;
         map<int, OverlayKey> pendingUDPRequests;
 
+        vector<TrafficRecord> exitTrafficHistory;
 
         // statistics
         int numSent;        // number of sent packets
@@ -125,6 +130,7 @@ class TrafficMixer : public BaseApp {
         // timers
         cMessage* requestTimer;
         cMessage* buildCircuitTimer;
+        cMessage* trafficReportTimer;
 
 
         // Responses from DHTMediator:  GetEvidenceResponse, GetCertificateResponse,
@@ -167,6 +173,10 @@ class TrafficMixer : public BaseApp {
 
         // Timeouts from TrafficMixer:  CreateCircuitCall, ExtendCircuitCall,
         //                              OnionMessage
+
+
+        // Calls from TrustedAuthority
+        void handleGetEvidenceCall(GetEvidenceCall* msg);
 
 
         // Procedures
@@ -289,6 +299,10 @@ class TrafficMixer : public BaseApp {
             selectedNodes.pop_back();
             return node;
         }
+
+        void storeTraffic(OverlayKey circuitID, TransportAddress target);
+
+        void releaseTrafficHistory();
 };
 
 

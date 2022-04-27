@@ -69,14 +69,10 @@ class CircuitEvidence : public CircuitEvidence_Base {
         }
 
         BaseCallMessage* getExtendCircuitCallEvidence() {
-            BaseCallMessage* call;
             if(type == CIRCUIT_EXTENSION) {
-                call = getExtendCircuitCallFromJSON(jsonCall.c_str()).dup();
-            } else {
-                call = getCreateCircuitCallFromJSON(jsonCall.c_str()).dup();
+                return getExtendCircuitCallFromJSON(jsonCall.c_str()).dup();
             }
-
-            return call;
+            return getCreateCircuitCallFromJSON(jsonCall.c_str()).dup();
         }
 
         string toJsonString() {

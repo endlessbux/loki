@@ -61,6 +61,12 @@ class Certificate : public Certificate_Base {
             Json::StreamWriterBuilder builder;
             return Json::writeString(builder, obj);
         }
+
+        string toStringID() {
+            string exp = expiration.str();
+            BinaryValue expirationStr = BinaryValue(exp);
+            return OverlayKey::sha1(expirationStr).toString();
+        }
 };
 
 inline void doParsimPacking(cCommBuffer *b, Certificate& obj) {obj.parsimPack(b);}

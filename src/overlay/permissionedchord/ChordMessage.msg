@@ -118,6 +118,7 @@ packet NotifyResponse extends ::BaseResponseMessage
 //
 packet RegistrationCall extends ::BaseCallMessage {
     Certificate cert;
+    ::NodeHandle node;
 }
 
 //
