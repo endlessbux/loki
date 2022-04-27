@@ -45,6 +45,29 @@ class DHTMediator : public DHTTestApp {
     private:
         map<int, StoredCall> pendingRpcCalls;
 
+
+        //parameters
+
+
+        // statistics
+        int numGetCertificateSent;
+        int numGetCertificateSuccess;
+        int numGetCertificateError;
+        int numPutCertificateSent;
+        int numPutCertificateSuccess;
+        int numPutCertificateError;
+        int numGetEvidenceSent;
+        int numGetEvidenceSuccess;
+        int numGetEvidenceError;
+        int numPutEvidenceSent;
+        int numPutEvidenceSuccess;
+        int numPutEvidenceError;
+
+
+        void initializeApp(int stage) override;
+
+        void finishApp() override;
+
         /**
          * see DHTTestApp.h
          */
@@ -56,18 +79,26 @@ class DHTMediator : public DHTTestApp {
 
         void handlePutCertificateCall(PutCertificateCall* msg);
 
-        void sendGetCertificateResponse(BaseCallMessage* call, DHTgetCAPIResponse* result);
+        void sendGetCertificateResponse(BaseCallMessage* call,
+                                        DHTgetCAPIResponse* result,
+                                        DHTStatsContext* context);
 
-        void sendPutCertificateResponse(BaseCallMessage* call, DHTputCAPIResponse* result);
+        void sendPutCertificateResponse(BaseCallMessage* call,
+                                        DHTputCAPIResponse* result,
+                                        DHTStatsContext* context);
 
 
         void handleGetEvidenceCall(GetEvidenceCall* msg);
 
         void handlePutEvidenceCall(PutEvidenceCall* msg);
 
-        void sendGetEvidenceResponse(BaseCallMessage* call, DHTgetCAPIResponse* result);
+        void sendGetEvidenceResponse(BaseCallMessage* call,
+                                     DHTgetCAPIResponse* result,
+                                     DHTStatsContext* context);
 
-        void sendPutEvidenceResponse(BaseCallMessage* call, DHTputCAPIResponse* result);
+        void sendPutEvidenceResponse(BaseCallMessage* call,
+                                     DHTputCAPIResponse* result,
+                                     DHTStatsContext* context);
 
         //-- END OF INTERNAL RPC HANDLING
 

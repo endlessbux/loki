@@ -1,6 +1,6 @@
 package oversim.tier2.dhtmediator;
 
-import oversim.tier2.dhttestapp.DHTTestApp;
+import oversim.common.BaseApp;
 import oversim.common.ITier;
 
 
@@ -9,14 +9,11 @@ import oversim.common.ITier;
 //
 // @author Gregoire Menuel, Ingmar Baumgart
 //
-simple DHTMediator extends DHTTestApp
+simple DHTMediator extends BaseApp
 {
     parameters:
         @class(DHTMediator);
-        testInterval = 0;				// time interval for DHT operations (put/get/modify)
-		testTtl = 3600*24*365;  		// TTL for stored test records
-        activeNetwInitPhase = false;	// send messages when network is in init phase?
-        p2pnsTraffic = false;			// model p2pns application traffic
+        int ttl = default(3600 * 24 * 365);
 }
 
 
