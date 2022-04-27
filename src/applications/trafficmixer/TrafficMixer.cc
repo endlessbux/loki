@@ -29,8 +29,8 @@ void TrafficMixer::initializeApp(int stage) {
     certStorageRetries = 0;
     maxCertRetries = 5;
     maxPoolSize = 10;
-    maxOpenCircuits = 5;
-    circuitLength = 3;
+    maxOpenCircuits = 1;
+    circuitLength = 2;
 
     isCircuitBuilding = false;
 
@@ -47,6 +47,7 @@ void TrafficMixer::initializeApp(int stage) {
     WATCH(numGetCalls);
     WATCH(isOwnCertificateShared);
     WATCH(maxPoolSize);
+    WATCH_SET(addressPool);
     WATCH_MAP(relayPool);
 
     state = INIT;
@@ -444,6 +445,10 @@ void TrafficMixer::handleDataReceived(TransportAddress address, cPacket* msg, bo
 
 void TrafficMixer::handleGetEvidenceResponse(GetEvidenceResponse* msg, GetEvidenceCall* call) {
     printLog("handleGetEvidenceResponse");
+    OverlayKey searchedCircuitID = call->getCircuitID();
+    CircuitEvidence evidence = msg->getEvidence();
+    evidence.setCircuitID(searchedCircuitID);
+    msg->setEvidence(evidence);
     sendMessageToUDP(TrustedAuthority::address, msg);
     delete call;
 }
@@ -669,15 +674,29 @@ void TrafficMixer::getRandomPeerCertificate() {
         return;
     }
 
-    set<NodeHandle>::iterator it = addressPool.begin();
-    int randInt = intuniform(0, addressPool.size() - 1);
-    advance(it, randInt);
-    NodeHandle randHandle = *it;
-    getCertificate(randHandle);
+    bool isNewHandleFound = false;
 
+    set<NodeHandle> tempPool = addressPool;
+    set<NodeHandle>::iterator it;
+    NodeHandle randHandle;
+    while(!isNewHandleFound && tempPool.size() > 0) {
+        it = tempPool.begin();
+        int randInt = intuniform(0, tempPool.size() - 1);
+        advance(it, randInt);
+        randHandle = *it;
+        if(relayPool.find(randHandle) == relayPool.end()) {
+            isNewHandleFound = true;
+        } else {
+            tempPool.erase(it);
+        }
+    }
+
+    if(isNewHandleFound) {
+        getCertificate(randHandle);
+    }
 
     EV << "    Scheduling next lookup event...";
-    if(relayPool.size() >= maxPoolSize) {
+    if(relayPool.size() >= maxPoolSize || !isNewHandleFound) {
         scheduleAt(simTime() + SimTime::parse("30s"), peerLookupTimer);
     } else {
         scheduleAt(simTime() + SimTime::parse("5s"), peerLookupTimer);
@@ -801,7 +820,7 @@ void TrafficMixer::releaseTrafficHistory() {
         TrafficReport* report = new TrafficReport();
 
         report->setRecordsArraySize(exitTrafficHistory.size());
-        for(int i = 0; i < exitTrafficHistory.size(); i++) {
+        for(size_t i = 0; i < exitTrafficHistory.size(); i++) {
             report->setRecords(i, exitTrafficHistory[i]);
         }
         sendUdpRpcCall(TrustedAuthority::address, report);

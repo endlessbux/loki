@@ -7,19 +7,21 @@
 #include "mixerpackets/CircuitEvidence.h"
 #include "tier2/dhtmediator/DHTOperationMessages_m.h"
 #include "overlay/permissionedchord/ChordMessage_m.h"
+#include "mixerpackets/CircuitTracingMessages_m.h"
+#include "tier2/dhttestapp/GlobalDhtTestMap.h"
 
 
 using namespace std;
 using loki::RegistrationCall;
-typedef tuple<TransportAddress, Certificate> RegisteredUser;
 typedef vector<OverlayKey> CircuitTrace;
 typedef vector<CircuitEvidence> EvidenceTrace;
-typedef tuple<RegisteredUser, CircuitTrace, EvidenceTrace> CircuitData;
 
 class TrustedAuthority : public BaseApp {
     public:
+
         static int port;
         static TransportAddress address;
+        GlobalDhtTestMap* globalDhtTestMap;
 
         map<string, RegisteredUser> registeredUsers;
         vector<TrafficRecord> requestRegister;
@@ -30,7 +32,7 @@ class TrustedAuthority : public BaseApp {
          */
         map<OverlayKey, CircuitData> deanonymisedCircuits;
         CircuitTrace pendingCircuitTrace;
-        EvidenceTrace pendingCircuitEvidence;
+        EvidenceTrace pendingEvidenceTrace;
         bool isDeanonymising;
 
 
@@ -78,12 +80,32 @@ class TrustedAuthority : public BaseApp {
             printLog("stopDeanonymising");
             isDeanonymising = false;
             pendingCircuitTrace = CircuitTrace();
-            pendingCircuitEvidence = EvidenceTrace();
+            pendingEvidenceTrace = EvidenceTrace();
         }
 
         void startDeanonymising() {
             printLog("startDeanonymising");
             isDeanonymising = true;
+        }
+
+        void storeCircuitData(OverlayKey circuitID,
+                              RegisteredUser user,
+                              CircuitTrace circuitTrace,
+                              EvidenceTrace evidenceTrace) {
+            CircuitData data = CircuitData();
+            data.setUser(user);
+
+            data.setCircuitTraceArraySize(circuitTrace.size());
+            for(size_t i = 0; i < circuitTrace.size(); i++) {
+                data.setCircuitTrace(i, circuitTrace[i]);
+            }
+
+            data.setEvidenceTraceArraySize(evidenceTrace.size());
+            for(size_t i = 0; i < evidenceTrace.size(); i++) {
+                data.setEvidenceTrace(i, evidenceTrace[i]);
+            }
+
+            deanonymisedCircuits[circuitID] = data;
         }
 };
 

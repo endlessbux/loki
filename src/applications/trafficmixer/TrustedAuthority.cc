@@ -21,6 +21,9 @@ void TrustedAuthority::initializeApp(int stage) {
     if(stage != MIN_STAGE_APP) {
         return;
     }
+    globalDhtTestMap = dynamic_cast<GlobalDhtTestMap*>(
+            (*getSimulation()).getModuleByPath(
+                "globalObserver.globalFunctions[0].function"));
 
     thisNode.setPort(TrustedAuthority::port);
     TrustedAuthority::address = thisNode;
@@ -35,7 +38,9 @@ void TrustedAuthority::initializeApp(int stage) {
     bindToPort(TrustedAuthority::port);
 
     WATCH(isDeanonymising);
+    WATCH_MAP(registeredUsers);
     WATCH_VECTOR(requestRegister);
+    WATCH_MAP(deanonymisedCircuits);
 }
 
 
@@ -118,9 +123,10 @@ uint32_t TrustedAuthority::sendUdpRpcCall(TransportAddress dest,
 
 void TrustedAuthority::handleTimerEvent(cMessage* msg) {
     if(msg == deanonymisationTimer) {
-        if(isDeanonymising) {
-            traceCircuitOrigin(
-                    pendingCircuitTrace[pendingCircuitTrace.size() - 1]);
+        if(isDeanonymising && pendingCircuitTrace.size() > 0) {
+            OverlayKey circuitID =
+                    pendingCircuitTrace[pendingCircuitTrace.size() - 1];
+            traceCircuitOrigin(circuitID);
         } else {
             traceRandomRequest();
         }
@@ -149,28 +155,48 @@ void TrustedAuthority::handleRegistrationCall(RegistrationCall* registrationMsg)
     printLog("handleRegistrationCall");
     Certificate cert = registrationMsg->getCert();
     TransportAddress nodeAddr = (TransportAddress)registrationMsg->getNode();
-    RegisteredUser user = {nodeAddr, cert};
-    registeredUsers[cert.toStringID()] = user;
+    RegisteredUser user = RegisteredUser();
+    user.setAddress(nodeAddr);
+    user.setCert(cert);
+    if(registeredUsers.find(cert.toStringID()) == registeredUsers.end())
+        registeredUsers[cert.toStringID()] = user;
 }
 
 
 void TrustedAuthority::handleGetEvidenceResponse(GetEvidenceResponse* msg) {
     printLog("handleGetEvidenceResponse");
     CircuitEvidence evidence = msg->getEvidence();
+    EvidenceType type;
+    OverlayKey circuitID;
+    string jsonCall;
+
     if(evidence.getType() == 0) {
-        EV << "    Circuit evidence not found; aborting..." << endl;
-        stopDeanonymising();
-        cancelEvent(deanonymisationTimer);
-        scheduleAt(simTime() + SimTime::parse("5s"), deanonymisationTimer);
+        const DHTEntry* entry = globalDhtTestMap->findEntry(
+                evidence.getCircuitID());
+        if(entry) {
+            // the entry is actually in the DHT
+            BinaryValue binaryEvidence = entry->value;
+            string jsonEvidence(binaryEvidence.begin(), binaryEvidence.end());
+            evidence = getCircuitEvidenceFromJSON(jsonEvidence);
+        } else {
+            EV << "    Circuit evidence not found; aborting..." << endl;
+            stopDeanonymising();
+            cancelEvent(deanonymisationTimer);
+            scheduleAt(simTime() + SimTime::parse("5s"), deanonymisationTimer);
+            return;
+        }
+    }
+    type = static_cast<EvidenceType>(evidence.getType());
+    circuitID = evidence.getCircuitID();
+    jsonCall = evidence.getJsonCall();
+
+    if(circuitID.isUnspecified()) {
+        EV << "    The circuitID is unspecified; aborting..." << endl;
         return;
     }
 
-    EvidenceType type = static_cast<EvidenceType>(evidence.getType());
-    OverlayKey circuitID = evidence.getCircuitID();
-    string jsonCall = evidence.getJsonCall();
-
     pendingCircuitTrace.push_back(circuitID);
-    pendingCircuitEvidence.push_back(evidence);
+    pendingEvidenceTrace.push_back(evidence);
 
     EV << "    Evidence type: " << type << endl;
     EV << "    Serialised call: " << jsonCall << endl;
@@ -181,8 +207,9 @@ void TrustedAuthority::handleGetEvidenceResponse(GetEvidenceResponse* msg) {
         CreateCircuitCall creationCall = getCreateCircuitCallFromJSON(jsonCall);
         Certificate creatorCert = creationCall.getCreatorCert();
         RegisteredUser user = registeredUsers[creatorCert.toStringID()];
-        CircuitData data(user, pendingCircuitTrace, pendingCircuitEvidence);
-        deanonymisedCircuits[pendingCircuitTrace[0]] = data;
+        OverlayKey circuitID = pendingCircuitTrace[0];
+        storeCircuitData(circuitID, user,
+                         pendingCircuitTrace, pendingEvidenceTrace);
         stopDeanonymising();
         cancelEvent(deanonymisationTimer);
         scheduleAt(simTime() + SimTime::parse("60s"), deanonymisationTimer);
@@ -199,18 +226,38 @@ void TrustedAuthority::handleGetEvidenceResponse(GetEvidenceResponse* msg) {
 
 
 void TrustedAuthority::traceRandomRequest() {
+    printLog("traceRandomRequest");
+    if(requestRegister.size() == 0) {
+        EV << "    The request register is empty; aborting..." << endl;
+        return;
+    }
 
     TrafficRecord record;
     OverlayKey circuitID;
-    bool isRequestPicked = false;
-    int tries = -1;
 
-    while(!isRequestPicked && tries < 20) {
-        tries++;
-        record = getRandomTrafficRecord();
+    struct ltTrafficRecord {
+        bool operator()(const TrafficRecord &t1, const TrafficRecord &t2) const {
+            return t1.getTimestamp() < t2.getTimestamp();
+        }
+    };
+
+    set<TrafficRecord, ltTrafficRecord> requestRegisterTemp(
+            requestRegister.begin(), requestRegister.end());
+    set<TrafficRecord>::iterator it;
+    bool isRequestPicked = false;
+
+    while(!isRequestPicked && requestRegisterTemp.size() > 0) {
+        it = requestRegisterTemp.begin();
+        int randInt = intuniform(0, requestRegisterTemp.size() - 1);
+        advance(it, randInt);
+        record = *it;
         circuitID = record.getCircuitID();
-        isRequestPicked = deanonymisedCircuits.find(circuitID) ==
-                          deanonymisedCircuits.end();
+
+        if(deanonymisedCircuits.find(circuitID) == deanonymisedCircuits.end()) {
+            isRequestPicked = true;
+        } else {
+            requestRegisterTemp.erase(it);
+        }
     }
 
     if(isRequestPicked)
@@ -228,7 +275,7 @@ void TrustedAuthority::traceCircuitOrigin(OverlayKey circuitID) {
 
     map<string, RegisteredUser>::iterator it = registeredUsers.begin();
     advance(it, intuniform(0, registeredUsers.size() - 1));
-    TransportAddress randNode = get<0>(it->second);
+    TransportAddress randNode = it->second.getAddress();
 
     sendUdpRpcCall(randNode, call);
 }
