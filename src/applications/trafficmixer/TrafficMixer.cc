@@ -560,9 +560,11 @@ void TrafficMixer::handleOnionMessage(OnionMessage* msg) {
         } else {
             EV << "    Payload failed to decapsulate; aborting..." << endl;
             //stopBuildingCircuit(false);
+            delete payload;
         }
     } else {
         EV << "    Received unknown OnionMessage; aborting..." << endl;
+        delete msg;
     }
 }
 
@@ -612,12 +614,14 @@ void TrafficMixer::handleOnionResponse(cPacket* msg, OverlayKey circuitID) {
     BuildCircuitResponse* bcrMsg = dynamic_cast<BuildCircuitResponse*>(msg);
     if(udpMsg) {
         EV << "    Received a response from the target server" << endl;
+        delete msg;
         cancelEvent(requestTimer);
         scheduleAt(simTime() + SimTime::parse("5s"), requestTimer);
     } else if(bcrMsg) {
         handleBuildCircuitResponse(bcrMsg, circuitID);
     } else {
         EV << "    Received an unrecognised payload" << endl;
+        delete msg;
     }
 }
 
@@ -628,6 +632,7 @@ void TrafficMixer::handleBuildCircuitResponse(BuildCircuitResponse* msg, Overlay
     if(!isCircuitBuilt) {
         EV << "    The circuit failed building; aborting..." << endl;
         stopBuildingCircuit(false);
+        delete msg;
         return;
     }
 
@@ -642,6 +647,7 @@ void TrafficMixer::handleBuildCircuitResponse(BuildCircuitResponse* msg, Overlay
         cancelEvent(requestTimer);
         scheduleAt(simTime(), requestTimer);
     }
+    delete msg;
 }
 
 

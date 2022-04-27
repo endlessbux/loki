@@ -153,6 +153,7 @@ cPacket* CircuitManager::unwrapPayload(OnionMessage* msg) {
     while(onion) {
         EV << "    Peeling Onion at pointer:" << onion << endl;
         content = peelOnionMessage(onion);
+        delete onion;
         onion = dynamic_cast<OnionMessage*>(content);
     }
 
