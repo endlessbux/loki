@@ -91,11 +91,13 @@ void PermissionedChord::initializeOverlay(int stage)
 
     // statistics
     joinCount = 0;
+    registrationCount = 0;
     stabilizeCount = 0;
     fixfingersCount = 0;
     notifyCount = 0;
     newsuccessorhintCount = 0;
     joinBytesSent = 0;
+    registrationBytesSent = 0;
     stabilizeBytesSent = 0;
     notifyBytesSent = 0;
     fixfingersBytesSent = 0;
@@ -333,13 +335,13 @@ bool PermissionedChord::handleRpcCall(BaseCallMessage* msg)
     }
 
     JoinCall* joinCall = dynamic_cast<JoinCall*>(msg);
-    //NotifyCall* notifyCall = dynamic_cast<NotifyCall*>(msg);
-    //StabilizeCall* stabilizeCall = dynamic_cast<StabilizeCall*>(msg);
-    //FixfingersCall* fixfingersCall = dynamic_cast<FixfingersCall*>(msg);
-    if(joinCall) {
+    NotifyCall* notifyCall = dynamic_cast<NotifyCall*>(msg);
+    StabilizeCall* stabilizeCall = dynamic_cast<StabilizeCall*>(msg);
+    FixfingersCall* fixfingersCall = dynamic_cast<FixfingersCall*>(msg);
+    if(joinCall || notifyCall || stabilizeCall || fixfingersCall) {
         if(!thisNode.isUnspecified() && !msg->getSrcNode().isUnspecified()) {
             if(msg->getSrcNode() != thisNode) {
-                EV << "-- SHARING CALL WITH TRAFFICMIXER --" << endl;
+                EV << "-- SHARING RPC CALL WITH TRAFFICMIXER --" << endl;
 
                 StorePeerHandleCall* msgToTier3 = new StorePeerHandleCall();
                 msgToTier3->setHandle(msg->getSrcNode());
@@ -783,6 +785,10 @@ void PermissionedChord::recordOverlaySentStats(BaseOverlayMessage* msg)
             } else if ((dynamic_cast<JoinCall*>(innerMsg) != NULL) ||
                     (dynamic_cast<JoinResponse*>(innerMsg) != NULL)) {
                 RECORD_STATS(joinCount++; joinBytesSent += msg->getByteLength());
+            } else if ((dynamic_cast<RegistrationCall*>(innerMsg) != NULL) ||
+                       (dynamic_cast<RegistrationResponse*>(innerMsg))) {
+                RECORD_STATS(registrationCount++;
+                             registrationBytesSent += msg->getByteLength());
             }
             break;
         }
@@ -806,6 +812,8 @@ void PermissionedChord::finishOverlay()
 
     globalStatistics->addStdDev("Chord: Sent JOIN Messages/s",
                                 joinCount / time);
+    globalStatistics->addStdDev("Chord: Sent REGISTRATION Messages/s",
+                                registrationCount / time);
     globalStatistics->addStdDev("Chord: Sent NEWSUCCESSORHINT Messages/s",
                                 newsuccessorhintCount / time);
     globalStatistics->addStdDev("Chord: Sent STABILIZE Messages/s",
@@ -816,6 +824,8 @@ void PermissionedChord::finishOverlay()
                                 fixfingersCount / time);
     globalStatistics->addStdDev("Chord: Sent JOIN Bytes/s",
                                 joinBytesSent / time);
+    globalStatistics->addStdDev("Chord: Sent REGISTRATION Bytes/s",
+                                registrationBytesSent / time);
     globalStatistics->addStdDev("Chord: Sent NEWSUCCESSORHINT Bytes/s",
                                 newsuccessorhintBytesSent / time);
     globalStatistics->addStdDev("Chord: Sent STABILIZE Bytes/s",

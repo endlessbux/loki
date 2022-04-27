@@ -39,7 +39,7 @@ class CircuitManager {
         void keepAlive();
         void destroy();
         void handleFailure(NodeHandle failedNode);
-        void handleBuildCircuitResponse(BuildCircuitResponse* msg);
+        bool handleBuildCircuitResponse(BuildCircuitResponse* msg);
         cPacket* unwrapPayload(OnionMessage* msg);
         void handleUDPResponse(UDPResponse* response);
 

@@ -110,22 +110,22 @@ void CircuitManager::handleFailure(NodeHandle failedNode) {
 }
 
 
-void CircuitManager::handleBuildCircuitResponse(BuildCircuitResponse* msg) {
+bool CircuitManager::handleBuildCircuitResponse(BuildCircuitResponse* msg) {
     printLog("handleBuildCircuitResponse");
 
-    TransportAddress nextNode = msg->getSrcNode();
+    TransportAddress nextNode = (TransportAddress)msg->getSrcNode();
     OverlayKey circuitID = msg->getCircuitID();
 
     if(pendingRelay.first.isUnspecified()) {
         EV << "    Received a BuildCircuitResponse from "
            << nextNode.getIp().str() << ":" << nextNode.getPort()
            << " but there is no pending relay; aborting..." << endl;
-        return;
+        return false;
     } else if(nextNode.isUnspecified()) {
         EV << "    Received a BuildCircuitResponse from an unspecified node --> "
            << nextNode.getIp().str() << ":" << nextNode.getPort()
            << "; aborting..." << endl;
-        return;
+        return false;
     }
 
     if(pendingRelay.first != nextNode) {
@@ -133,7 +133,7 @@ void CircuitManager::handleBuildCircuitResponse(BuildCircuitResponse* msg) {
            << nextNode.getIp().str() << ":" << nextNode.getPort()
            << " while the queried node was " << pendingRelay.first.getIp().str()
            << ":" << pendingRelay.first.getPort() << "; aborting..." << endl;
-        return;
+        return false;
     }
 
     RelayInfo relayInfo(circuitID, nextNode, pendingRelay.second);
@@ -141,6 +141,7 @@ void CircuitManager::handleBuildCircuitResponse(BuildCircuitResponse* msg) {
     involvedNodes.insert(nextNode);
     circuitOrder.push_back(circuitID);
     circuitData[circuitID] = relayInfo;
+    return true;
 }
 
 

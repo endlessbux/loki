@@ -111,8 +111,9 @@ class TrafficMixer : public BaseApp {
         map<int, StoredCall> pendingRpcCalls;
         CircuitManager pendingCircuit;
         vector<NodeHandle> selectedNodes;
-        bool isBuildingCircuit;
+        bool isCircuitBuilding;
 
+        set<NodeHandle> addressPool;
         map<NodeHandle, Certificate> relayPool;
         map<OverlayKey, CircuitManager> ownCircuits;
         map<OverlayKey, CircuitRelay*> extCircuits;
@@ -128,6 +129,7 @@ class TrafficMixer : public BaseApp {
         int numGetCalls;    // number of retrievals from the DHT
 
         // timers
+        cMessage* peerLookupTimer;
         cMessage* requestTimer;
         cMessage* buildCircuitTimer;
         cMessage* trafficReportTimer;
@@ -180,6 +182,8 @@ class TrafficMixer : public BaseApp {
 
 
         // Procedures
+        void getRandomPeerCertificate();
+
         void putEvidence(CircuitEvidence evidence);
 
         void putCertificate(Certificate cert, NodeHandle handle);
@@ -303,6 +307,31 @@ class TrafficMixer : public BaseApp {
         void storeTraffic(OverlayKey circuitID, TransportAddress target);
 
         void releaseTrafficHistory();
+
+        void startBuildingCircuit() {
+            isCircuitBuilding = true;
+            selectedNodes = getNRandomRelays(circuitLength);
+
+            EV << "    Selected nodes: [" << endl;
+            for(auto node: selectedNodes)
+                EV << "        " << node.getIp() << ":" << node.getPort() << endl;
+
+            EV << "    ]" << endl;
+
+            pendingCircuit = CircuitManager(this);
+        }
+
+        void stopBuildingCircuit(bool isBuildSuccess = true) {
+            isCircuitBuilding = false;
+            cancelEvent(buildCircuitTimer);
+            if(isBuildSuccess) {
+                OverlayKey circuitID = pendingCircuit.getCircuitIDAtPosition(0);
+                ownCircuits[circuitID] = pendingCircuit;
+                scheduleAt(simTime() + SimTime::parse("5s"), buildCircuitTimer);
+            } else {
+                scheduleAt(simTime(), buildCircuitTimer);
+            }
+        }
 };
 
 

@@ -29,10 +29,10 @@ void TrafficMixer::initializeApp(int stage) {
     certStorageRetries = 0;
     maxCertRetries = 5;
     maxPoolSize = 10;
-    maxOpenCircuits = 1;
-    circuitLength = 2;
+    maxOpenCircuits = 5;
+    circuitLength = 3;
 
-    isBuildingCircuit = false;
+    isCircuitBuilding = false;
 
 
     // statistics
@@ -52,10 +52,13 @@ void TrafficMixer::initializeApp(int stage) {
     state = INIT;
     applicationPort = 31415;
 
-    requestTimer = new cMessage("Request Timer");
-    buildCircuitTimer = new cMessage("Build Circuit Timer");
+    peerLookupTimer = new cMessage("PeerLookupTimer");
+    scheduleAt(simTime() + SimTime::parse("5s"), peerLookupTimer);
 
-    trafficReportTimer = new cMessage("Traffic Report Timer");
+    requestTimer = new cMessage("RequestTimer");
+    buildCircuitTimer = new cMessage("BuildCircuitTimer");
+
+    trafficReportTimer = new cMessage("TrafficReportTimer");
     scheduleAt(simTime() + SimTime::parse("60s"), trafficReportTimer);
 
     bindToPort(applicationPort);
@@ -76,6 +79,8 @@ void TrafficMixer::handleTimerEvent(cMessage* msg) {
         buildCircuit();
     } else if(msg == trafficReportTimer) {
         releaseTrafficHistory();
+    } else if(msg == peerLookupTimer) {
+        getRandomPeerCertificate();
     }
 }
 
@@ -110,9 +115,9 @@ void TrafficMixer::buildCircuit() {
         return;
     }
 
-    if(!isBuildingCircuit && ownCircuits.size() < maxOpenCircuits) {
+    if(!isCircuitBuilding && ownCircuits.size() < maxOpenCircuits) {
         buildNewCircuit();
-    } else if(isBuildingCircuit) {
+    } else if(isCircuitBuilding) {
         extendCircuit();
     }
 
@@ -121,14 +126,17 @@ void TrafficMixer::buildCircuit() {
 
 void TrafficMixer::extendCircuit() {
     printLog("extendCircuit");
-    if(selectedNodes.size() > 0) {
-        isBuildingCircuit = true;
+    if(selectedNodes.size() > 0 &&
+       pendingCircuit.pendingRelay.first.isUnspecified()) {
         NodeHandle nextNode = getNextSelectedRelay();
         nextNode.setPort(applicationPort);
 
         Certificate cert = getOwnCertificate();
         string key = generateRandomKey(uniform(0, 1));
         pendingCircuit.extend(nextNode, cert, key);
+    } else {
+        EV << "    Something went wrong; aborting..." << endl;
+        stopBuildingCircuit(false);
     }
 }
 
@@ -136,14 +144,7 @@ void TrafficMixer::extendCircuit() {
 void TrafficMixer::buildNewCircuit() {
     printLog("buildNewCircuit");
 
-    isBuildingCircuit = true;
-    selectedNodes = getNRandomRelays(circuitLength);
-
-    EV << "    Selected nodes: [" << endl;
-    for(auto node: selectedNodes)
-        EV << "        " << node.getIp() << ":" << node.getPort() << endl;
-
-    EV << "    ]" << endl;
+    startBuildingCircuit();
 
     NodeHandle entryNode = getNextSelectedRelay();
     entryNode.setPort(applicationPort);
@@ -153,7 +154,6 @@ void TrafficMixer::buildNewCircuit() {
     Certificate cert = getOwnCertificate();
     string key = generateRandomKey(uniform(0, 1));
 
-    pendingCircuit = CircuitManager(this);
     pendingCircuit.create(entryNode, cert, key);
 }
 
@@ -229,10 +229,19 @@ void TrafficMixer::internalHandleRpcMessage(BaseRpcMessage* msg) {
                 if(relayPool.find(handle) == relayPool.end()) {
                     // relay is not in the pool
                     if(_StorePeerHandleCall->getCommand() == loki::GET_FROM_DHT) {
-                        EV << "    Getting node certificate..." << endl;
-                        getCertificate(handle);
+                        if(addressPool.find(handle) == addressPool.end() &&
+                           relayPool.find(handle) == relayPool.end()) {
+                            EV << "    Storing node in the address pool..." << endl;
+                            addressPool.insert(handle);
+                        } else {
+                            EV << "    Node is already known;"
+                               << " aborting..." << endl;
+                        }
                     } else {
-                        EV << "    Storing node information..." << endl;
+                        EV << "    Storing node in the relay pool..." << endl;
+                        if(addressPool.find(handle) != addressPool.end()) {
+                            addressPool.erase(handle);
+                        }
                         Certificate cert = _StorePeerHandleCall->getCert();
                         addRelayToPool(handle, cert);
                     }
@@ -536,14 +545,15 @@ void TrafficMixer::handleOnionMessage(OnionMessage* msg) {
     } else if(extCircuits.find(circuitID) != extCircuits.end()) {
         EV << "    Received OnionMessage from external circuit" << endl;
         extCircuits[circuitID]->handleOnionMessage(msg);
-    } else if(isBuildingCircuit) {
+    } else if(isCircuitBuilding) {
         EV << "    Received OnionMessage from pending circuit" << endl;
         cPacket* payload = pendingCircuit.unwrapPayload(msg);
-        assert(payload);
-        if(payload)
+        if(payload) {
             handleOnionResponse(payload, circuitID);
-        else
+        } else {
             EV << "    Payload failed to decapsulate; aborting..." << endl;
+            //stopBuildingCircuit(false);
+        }
     } else {
         EV << "    Received unknown OnionMessage; aborting..." << endl;
     }
@@ -607,19 +617,20 @@ void TrafficMixer::handleOnionResponse(cPacket* msg, OverlayKey circuitID) {
 
 void TrafficMixer::handleBuildCircuitResponse(BuildCircuitResponse* msg, OverlayKey circuitID) {
     printLog("handleBuildCircuitResponse");
-    pendingCircuit.handleBuildCircuitResponse(msg);
+    bool isCircuitBuilt = pendingCircuit.handleBuildCircuitResponse(msg);
+    if(!isCircuitBuilt) {
+        EV << "    The circuit failed building; aborting..." << endl;
+        stopBuildingCircuit(false);
+        return;
+    }
+
     if(selectedNodes.size() > 0) {
         // the circuit building process wasn't finished
         cancelEvent(buildCircuitTimer);
         scheduleAt(simTime(), buildCircuitTimer);
     } else {
         // the circuit building process was completed
-        OverlayKey circuitID = pendingCircuit.getCircuitIDAtPosition(0);
-        ownCircuits[circuitID] = pendingCircuit;
-        isBuildingCircuit = false;
-
-        cancelEvent(buildCircuitTimer);
-        scheduleAt(simTime(), buildCircuitTimer);
+        stopBuildingCircuit();
 
         cancelEvent(requestTimer);
         scheduleAt(simTime(), requestTimer);
@@ -644,6 +655,33 @@ void TrafficMixer::handleUDPResponse(UDPResponse* msg) {
 
 void TrafficMixer::handleGetEvidenceCall(GetEvidenceCall* msg) {
     getEvidence(msg->getCircuitID());
+}
+
+
+void TrafficMixer::getRandomPeerCertificate() {
+    printLog("getRandomPeerCertificate");
+
+    cancelEvent(peerLookupTimer);
+
+    if(addressPool.size() == 0) {
+        EV << "    The address pool is empty; rescheduling..." << endl;
+        scheduleAt(simTime() + SimTime::parse("5s"), peerLookupTimer);
+        return;
+    }
+
+    set<NodeHandle>::iterator it = addressPool.begin();
+    int randInt = intuniform(0, addressPool.size() - 1);
+    advance(it, randInt);
+    NodeHandle randHandle = *it;
+    getCertificate(randHandle);
+
+
+    EV << "    Scheduling next lookup event...";
+    if(relayPool.size() >= maxPoolSize) {
+        scheduleAt(simTime() + SimTime::parse("30s"), peerLookupTimer);
+    } else {
+        scheduleAt(simTime() + SimTime::parse("5s"), peerLookupTimer);
+    }
 }
 
 

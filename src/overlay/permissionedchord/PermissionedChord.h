@@ -111,11 +111,13 @@ protected:
 
     // statistics
     int joinCount; /**< */
+    int registrationCount;
     int stabilizeCount; /**< */
     int fixfingersCount; /**< */
     int notifyCount; /**< */
     int newsuccessorhintCount; /**< */
     int joinBytesSent; /**< */
+    int registrationBytesSent;
     int stabilizeBytesSent; /**< */
     int notifyBytesSent; /**< */
     int fixfingersBytesSent; /**< */
