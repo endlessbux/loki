@@ -17,7 +17,7 @@
 using namespace std;
 class TrafficMixer;
 
-class CircuitRelay {
+class CircuitRelay : public cObject {
     friend class TrafficMixer;
     private:
         TrafficMixer* mix;
@@ -41,6 +41,17 @@ class CircuitRelay {
         CircuitRelay(TrafficMixer* mix, CreateCircuitCall* call, string privateKey);
         CircuitRelay(TrafficMixer* mix, ExtendCircuitCall* call, string privateKey);
         ~CircuitRelay() { };
+
+        string str() const {
+            string info =
+                    "[" + evidence.getCircuitID().toString() +
+                    " --> " + nextCircuitID.toString() + "]" +
+                    prevNode.getIp().str() + " --> " + nextNode.getIp().str();
+            return info;
+        }
+
+        friend ostream& operator<<(ostream& stream,
+                                   const CircuitRelay& relay);
 
         NodeHandle getPrevNode() { return prevNode; };
         NodeHandle getNextNode() { return nextNode; };
@@ -71,5 +82,11 @@ class CircuitRelay {
         void printLog(string function);
 
 };
+
+inline ostream& operator<<(ostream& stream,
+                    const CircuitRelay& relay) {
+    stream << relay.str();
+    return stream;
+}
 
 #endif

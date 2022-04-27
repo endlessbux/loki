@@ -49,6 +49,8 @@ void TrafficMixer::initializeApp(int stage) {
     WATCH(maxPoolSize);
     WATCH_SET(addressPool);
     WATCH_MAP(relayPool);
+    WATCH_MAP(ownCircuits);
+    WATCH_PTRMAP(extCircuits);
 
     state = INIT;
     applicationPort = 31415;

@@ -15,7 +15,7 @@ class TrafficMixer;
 typedef tuple<OverlayKey, TransportAddress, string> RelayInfo;
 
 
-class CircuitManager {
+class CircuitManager : public cObject {
     friend class TrafficMixer;
 
     private:
@@ -31,6 +31,22 @@ class CircuitManager {
         ~CircuitManager() { }
 
         int size() { return circuitOrder.size(); }
+        string str() const {
+            string path = "";
+            bool isFirst = true;
+            for(TransportAddress node : involvedNodes) {
+                if(isFirst) {
+                    isFirst = false;
+                } else {
+                    path += " --> ";
+                }
+                path += node.getIp().str();
+            }
+            return path;
+        }
+
+        friend ostream& operator<<(ostream& stream,
+                                   const CircuitManager& manager);
 
     protected:
         void sendRequest(cPacket* msg);
@@ -55,5 +71,11 @@ class CircuitManager {
         string getKeyFromOnionMessage(OnionMessage* msg);
         void printLog(string functionName);
 };
+
+inline ostream& operator<<(ostream& stream,
+                    const CircuitManager& manager) {
+    stream << manager.str();
+    return stream;
+}
 
 #endif
