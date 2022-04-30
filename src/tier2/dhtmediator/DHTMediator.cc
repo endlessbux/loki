@@ -114,6 +114,18 @@ void DHTMediator::finishApp() {
         return;
     }
 
+    // Totals
+    globalStatistics->addStdDev("DHTMediator: Sent Total Messages", numSent);
+    globalStatistics->addStdDev("DHTMediator: Sent GET Messages", numGetSent);
+    globalStatistics->addStdDev("DHTMediator: Sent GET Certificate Messages",
+                                numGetCertificateSent);
+    globalStatistics->addStdDev("DHTMediator: Sent GET Evidence Messages",
+                                numGetEvidenceSent);
+    globalStatistics->addStdDev("DHTMediator: Sent PUT Messages", numPutSent);
+    globalStatistics->addStdDev("DHTMediator: Sent PUT Certificate Messages",
+                                numPutCertificateSent);
+    globalStatistics->addStdDev("DHTMediator: Sent PUT Evidence Messages",
+                                numPutEvidenceSent);
 
     // Statistics over time
     globalStatistics->addStdDev("DHTMediator: Sent Total Messages/s",

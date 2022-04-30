@@ -5,6 +5,18 @@ cplusplus {{
 #include "Certificate.h"
 #include "KeyExchange.h"
 #include "OnionMessage.h"
+
+
+#define CREATECIRCUITCALL_L(msg) (BASECALL_L(msg) + CERTIFICATE_L +\
+								  KEYEXCHANGE_L)
+#define BUILDCIRCUITRESPONSE_L(msg) (BASERESPONSE_L(msg) + KEY_L)
+#define NOTIFYCIRCUITRESPONSE_L(msg) (BASECALL_L(msg) +\
+									  KEY_L * 2 +\
+									  ONIONMESSAGE_L(msg))
+#define TRIGGEREXTENSIONCALL_L(msg) (BASECALL_L(msg) + IPADDRESS_L + KEYEXCHANGE_L)
+#define EXTENDCIRCUITCALL_L(msg) (BASECALL_L(msg) + KEYEXCHANGE_L +\
+								  CERTIFICATE_L + KEY_L)
+
 }}
 
 class BaseCallMessage;

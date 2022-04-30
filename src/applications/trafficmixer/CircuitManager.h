@@ -49,7 +49,7 @@ class CircuitManager : public cObject {
                                    const CircuitManager& manager);
 
     protected:
-        void sendRequest(cPacket* msg);
+        uint32_t sendRequest(cPacket* msg);
         void create(NodeHandle entryNode, Certificate cert, string key);
         void extend(NodeHandle nextNode, Certificate cert, string key);
         void keepAlive();

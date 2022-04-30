@@ -124,6 +124,9 @@ void PermissionedChord::initializeOverlay(int stage)
 
     // get certificate authority
     certificateAuthority = Conductor::networkController;
+
+    // store initialisation time
+    globalStatistics->addStdDev("Chord: Initialisation Time", simTime().dbl());
 }
 
 
@@ -810,30 +813,56 @@ void PermissionedChord::finishOverlay()
     simtime_t time = globalStatistics->calcMeasuredLifetime(creationTime);
     if (time < GlobalStatistics::MIN_MEASURED) return;
 
-    globalStatistics->addStdDev("Chord: Sent JOIN Messages/s",
-                                joinCount / time);
-    globalStatistics->addStdDev("Chord: Sent REGISTRATION Messages/s",
-                                registrationCount / time);
-    globalStatistics->addStdDev("Chord: Sent NEWSUCCESSORHINT Messages/s",
-                                newsuccessorhintCount / time);
-    globalStatistics->addStdDev("Chord: Sent STABILIZE Messages/s",
-                                stabilizeCount / time);
-    globalStatistics->addStdDev("Chord: Sent NOTIFY Messages/s",
-                                notifyCount / time);
-    globalStatistics->addStdDev("Chord: Sent FIX_FINGERS Messages/s",
-                                fixfingersCount / time);
-    globalStatistics->addStdDev("Chord: Sent JOIN Bytes/s",
-                                joinBytesSent / time);
-    globalStatistics->addStdDev("Chord: Sent REGISTRATION Bytes/s",
-                                registrationBytesSent / time);
-    globalStatistics->addStdDev("Chord: Sent NEWSUCCESSORHINT Bytes/s",
-                                newsuccessorhintBytesSent / time);
-    globalStatistics->addStdDev("Chord: Sent STABILIZE Bytes/s",
-                                stabilizeBytesSent / time);
-    globalStatistics->addStdDev("Chord: Sent NOTIFY Bytes/s",
-                                notifyBytesSent / time);
-    globalStatistics->addStdDev("Chord: Sent FIX_FINGERS Bytes/s",
-                                fixfingersBytesSent / time);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Measured time",
+            time.dbl());
+
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent Total Messages",
+            joinCount + registrationCount + newsuccessorhintCount +
+            stabilizeCount + notifyCount + fixfingersCount);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent JOIN Messages",
+            joinCount);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent REGISTRATION Messages",
+            registrationCount);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent NEWSUCCESSORHINT Messages",
+            newsuccessorhintCount);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent STABILIZE Messages",
+            stabilizeCount);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent NOTIFY Messages",
+            notifyCount);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent FIX_FINGERS Messages",
+            fixfingersCount);
+
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent Total Bytes",
+            joinBytesSent + registrationBytesSent +
+            newsuccessorhintBytesSent + stabilizeBytesSent +
+            notifyBytesSent + fixfingersBytesSent);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent JOIN Bytes",
+            joinBytesSent);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent REGISTRATION Bytes",
+            registrationBytesSent);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent NEWSUCCESSORHINT Bytes",
+            newsuccessorhintBytesSent);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent STABILIZE Bytes",
+            stabilizeBytesSent);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent NOTIFY Bytes",
+            notifyBytesSent);
+    globalStatistics->recordOutVector(
+            "PermissionedChord: Sent FIX_FINGERS Bytes",
+            fixfingersBytesSent);
 }
 
 
@@ -1157,6 +1186,8 @@ void PermissionedChord::handleRpcJoinResponse(JoinResponse* joinResponse)
     // immediate finger repair protocol
     cancelEvent(fixfingers_timer);
     scheduleAt(simTime(), fixfingers_timer);
+
+    globalStatistics->addStdDev("Chord: Overlay Ready Time", simTime().dbl());
 }
 
 

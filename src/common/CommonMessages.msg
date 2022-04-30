@@ -52,8 +52,8 @@ static const int NCSINFO_L = 32;
 // is work in progress and currently not used
 #define TRANSPORTADDRESS_L (IPADDR_L + UDPPORT_L)
 
-#define AUTHBLOCK_L (overlay->getMeasureAuthBlock() ? (SIGNATURE_L + CERT_L + PUBKEY_L) : 0)
-
+//#define AUTHBLOCK_L (overlay->getMeasureAuthBlock() ? (SIGNATURE_L + CERT_L + PUBKEY_L) : 0)
+#define AUTHBLOCK_L 0
 #define BASEOVERLAY_L(msg) TYPE_L
 #define BASEROUTE_L(msg) (BASEOVERLAY_L(msg) + NODEHANDLE_L + KEY_L + \
                           HOPCOUNT_L + ROUTINGTYPE_L +\

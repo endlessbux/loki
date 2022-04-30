@@ -57,6 +57,8 @@ bool TargetServer::internalHandleRpcCall(BaseCallMessage* msg) {
        << ";\n    sending a response..." << endl;
     UDPResponse* responseMsg = new UDPResponse();
     responseMsg->setNonce(callMsg->getNonce());
+    responseMsg->setInternalID(callMsg->getInternalID());
+    responseMsg->setBitLength(UDPRESPONSE_L(responseMsg));
     sendRpcResponse(callMsg, responseMsg);
 
     return true;

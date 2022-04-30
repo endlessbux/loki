@@ -37,6 +37,7 @@ CircuitRelay(mix, call->getSrcNode(), call->getKeyExchange(), privateKey) {
     BuildCircuitResponse* response = new BuildCircuitResponse();
     response->setCircuitID(getCircuitID());
     response->setSrcNode(mix->getThisNode());
+    response->setBitLength(BUILDCIRCUITRESPONSE_L(response));
     wrapAndRelay(response);
 }
 
@@ -56,6 +57,7 @@ CircuitRelay(mix, call->getSrcNode(), call->getKeyExchange(), privateKey) {
     BuildCircuitResponse* response = new BuildCircuitResponse();
     response->setCircuitID(getCircuitID());
     response->setSrcNode(mix->getThisNode());
+    response->setBitLength(BUILDCIRCUITRESPONSE_L(response));
     returnMsg->encapsulate(response);
 
     NotifyCircuitResponse* notifyMsg = new NotifyCircuitResponse();
@@ -63,6 +65,7 @@ CircuitRelay(mix, call->getSrcNode(), call->getKeyExchange(), privateKey) {
     notifyMsg->setNextCircuitID(getCircuitID());
     notifyMsg->setSrcNode(mix->getThisNode());
     notifyMsg->setMsg(*returnMsg);
+    notifyMsg->setBitLength(NOTIFYCIRCUITRESPONSE_L(notifyMsg));
 
     delete returnMsg;
     mix->sendRpcResponse(call, notifyMsg);
@@ -85,6 +88,10 @@ void CircuitRelay::handleTriggerExtensionCall(TriggerExtensionCall* msg) {
     extensionCall->setKeyExchange(msg->getKeyExchange());
     extensionCall->setPrevNodeCert(mix->getOwnCertificate());
     extensionCall->setPrevCircuitID(getCircuitID());
+    extensionCall->setBitLength(EXTENDCIRCUITCALL_L(extensionCall));
+
+    mix->numBuildCircuitSent++;
+    mix->bytesBuildCircuitSent += extensionCall->getByteLength();
 
     mix->sendUdpRpcCall(msg->getNextNode(), extensionCall);
 }
@@ -176,6 +183,9 @@ void CircuitRelay::propagateRelayDisconnectCall(NodeHandle disconnectedNode) {
 
 void CircuitRelay::relayMessage(OnionMessage* msg) {
     printLog("relayMessage");
+    mix->numOnionRelayed++;
+    mix->bytesOnionRelayed += msg->getByteLength();
+    mix->onionsRelayed.record(mix->numOnionRelayed);
     if(msg->getDirection() == OUTWARD) {
         EV << "    Relaying outgoing onion to "
            << nextNode.getIp().str() << ":" << nextNode.getPort() << endl;
@@ -213,6 +223,8 @@ void CircuitRelay::sendExitRequest(OnionMessage* msg) {
         sender.setPort(TargetServer::port);
         udpCall->setSrcNode(sender);
         mix->sendExitRequest(getCircuitID(), udpCall);
+        mix->numExitRequests++;
+        mix->bytesExitRequests += udpCall->getByteLength();
         return;
     }
 
@@ -231,6 +243,7 @@ OnionMessage* CircuitRelay::getOnionMessage() {
     printLog("getOnionMessage");
     OnionMessage* msg = new OnionMessage(INWARD, getCircuitID(), symmetricKey);
     msg->setSrcNode(mix->getThisNode());
+    msg->setBitLength(ONIONMESSAGE_L(msg));
     return msg;
 }
 

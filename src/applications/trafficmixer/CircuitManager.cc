@@ -13,12 +13,14 @@ CircuitManager::CircuitManager(TrafficMixer* mix) {
 }
 
 
-void CircuitManager::sendRequest(cPacket* msg) {
+uint32_t CircuitManager::sendRequest(cPacket* msg) {
     printLog("sendRequest");
 
     OnionMessage* onion = wrapPacket(msg);
     TransportAddress entryNode = (TransportAddress)getEntryNode();
-    mix->sendUdpRpcCall(entryNode, onion);
+    mix->numOnionSent++;
+    mix->bytesOnionSent += onion->getByteLength();
+    return mix->sendUdpRpcCall(entryNode, onion);
 }
 
 
@@ -30,10 +32,14 @@ void CircuitManager::create(NodeHandle entryNode, Certificate cert, string key) 
     pendingRelay = {entryNode, key};
     call->setKeyExchange(keyExchange);
     call->setCreatorCert(cert);
+    call->setBitLength(CREATECIRCUITCALL_L(call));
 
     EV << "    Sending create signal to "
        << entryNode.getIp() << ":" << entryNode.getPort() << endl;
     EV << "    Key:" << key << endl;
+
+    mix->numBuildCircuitSent++;
+    mix->bytesBuildCircuitSent += call->getByteLength();
     mix->sendUdpRpcCall(entryNode, call);
 }
 
@@ -46,6 +52,8 @@ void CircuitManager::extend(NodeHandle nextNode, Certificate cert, string key) {
     pendingRelay = {nextNode, key};
     call->setKeyExchange(keyExchange);
     call->setNextNode(nextNode);
+    call->setBitLength(TRIGGEREXTENSIONCALL_L(call));
+
     sendRequest(call);
 }
 
@@ -205,6 +213,7 @@ OnionMessage* CircuitManager::wrapPacket(cPacket* msg) {
         OverlayKey circuitID = get<0>(data);
         string encryptionKey = get<2>(data);
         OnionMessage* builtMsg = new OnionMessage(direction, circuitID, encryptionKey);
+        builtMsg->setBitLength(ONIONMESSAGE_L(builtMsg));
         if(prevMsg) {
             builtMsg->encapsulate(prevMsg);
         } else {

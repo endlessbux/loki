@@ -83,8 +83,8 @@ inline string generateRandomKey(double seed) {
  * Generates a new random keyset
  */
 inline AsymmetricKeySet generateNewKeySet(double seed) {
-    string publicKey = "AKEY__" + generateRandomKey(seed);
-    string privateKey = "AKEY__" + generateRandomKey(seed + 1);
+    string publicKey = generateRandomKey(seed);
+    string privateKey = generateRandomKey(seed + 1);
 
     AsymmetricKeySet keySet = AsymmetricKeySet();
     keySet.setPublicKey(publicKey.c_str());

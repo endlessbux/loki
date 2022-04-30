@@ -2,6 +2,7 @@
 
 
 Define_Module(TrustedAuthority);
+Register_Class(TrustedAuthority);
 
 
 TransportAddress TrustedAuthority::address = TransportAddress::UNSPECIFIED_NODE;

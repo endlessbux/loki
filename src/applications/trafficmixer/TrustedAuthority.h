@@ -36,6 +36,7 @@ class TrustedAuthority : public BaseApp {
         bool isDeanonymising;
 
 
+        // timers
         cMessage* deanonymisationTimer;
 
 

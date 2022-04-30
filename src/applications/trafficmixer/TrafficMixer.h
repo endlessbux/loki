@@ -21,6 +21,9 @@
 #include "TargetServer.h"
 #include "TrustedAuthority.h"
 #include "mixerpackets/TrafficReport_m.h"
+#include "common/GlobalStatistics.h"
+#include "applications/dht/DHTDataStorage.h"
+#include "applications/dht/DHT.h"
 
 
 using loki::PermissionedChord;
@@ -74,6 +77,8 @@ class TrafficMixer : public BaseApp {
 
         void sendExitRequest(OverlayKey circuitID, UDPCall* udpCall);
 
+        void handleRequestTimeout(cMessage* msg);
+
         void internalHandleRpcMessage(BaseRpcMessage* msg) override;
 
         virtual void internalHandleRpcTimeout(
@@ -107,32 +112,62 @@ class TrafficMixer : public BaseApp {
         size_t maxOpenCircuits;     // maximum amount of parallel open circuits
         size_t circuitLength;       // maximum length of each circuit
         size_t maxRequestRetries;   // maximum amount of retries for OnionMessage requests
+        simtime_t timeoutLimit;     // amount of time before an anonymised request times out
 
         map<int, StoredCall> pendingRpcCalls;
         CircuitManager pendingCircuit;
         vector<NodeHandle> selectedNodes;
         bool isCircuitBuilding;
 
+        simtime_t circuitBuildingBeginTime;
+        simtime_t overlayReadyTime;
+
         set<NodeHandle> addressPool;
         map<NodeHandle, Certificate> relayPool;
         map<OverlayKey, CircuitManager> ownCircuits;
         map<OverlayKey, CircuitRelay*> extCircuits;
         map<int, OverlayKey> pendingUDPRequests;
-
+        map<int, simtime_t> pendingOnionRequestsTimes;
+        map<int, OverlayKey> pendingOnionRequestsCircuits;
         vector<TrafficRecord> exitTrafficHistory;
 
         // statistics
-        int numSent;        // number of sent packets
-        int numRelayed;     // number of relayed onions
-        int numTcpRequests; // number of TCP requests to the target server
-        int numPutCalls;    // number of successful insertions on the DHT
-        int numGetCalls;    // number of retrievals from the DHT
+        GlobalStatistics* globalStatistics;
+        int numOnionSent;
+        int bytesOnionSent;
+        int numOnionReceived;
+        int bytesOnionReceived;
+        int numOnionRelayed;
+        int bytesOnionRelayed;
+        int numExitRequests;
+        int bytesExitRequests;
+        int numExitResponse;
+        int bytesExitResponse;
+        int numTargetSent;
+        int bytesTargetSent;
+        int bytesTargetReceived;
+        int numTargetSuccess;
+        int numTargetFailure;
+        int numBuildCircuitSent;
+        int bytesBuildCircuitSent;
+        int numBuildCircuitReceived;
+        int bytesBuildCircuitReceived;
+        int numCreateSuccess;
+        int numCreateFailure;
+        int numExtendSuccess;
+        int numExtendFailure;
 
         // timers
         cMessage* peerLookupTimer;
         cMessage* requestTimer;
         cMessage* buildCircuitTimer;
         cMessage* trafficReportTimer;
+        set<cMessage*> requestsTimeoutTimers;
+        cOutVector relayPoolSize;
+        cOutVector onionsRelayed;
+        cOutVector circuitBuildingTime;
+        cOutVector requestLatencies;
+        cOutVector ownCircuitsLengths;
 
 
         // Responses from DHTMediator:  GetEvidenceResponse, GetCertificateResponse,
@@ -245,6 +280,7 @@ class TrafficMixer : public BaseApp {
         }
 
         void addRelayToPool(NodeHandle handle, Certificate cert) {
+            handle.setPort(applicationPort);
             if(relayPool.size() >= maxPoolSize) {
                 // remove random relay from pool and add this one instead
                 removeRandomRelay();
@@ -254,6 +290,7 @@ class TrafficMixer : public BaseApp {
                 cancelEvent(buildCircuitTimer);
                 scheduleAt(simTime(), buildCircuitTimer);
             }
+            relayPoolSize.record(relayPool.size());
         }
 
         void removeRandomRelay() {
@@ -311,6 +348,7 @@ class TrafficMixer : public BaseApp {
         void startBuildingCircuit() {
             isCircuitBuilding = true;
             selectedNodes = getNRandomRelays(circuitLength);
+            circuitBuildingBeginTime = simTime();
 
             EV << "    Selected nodes: [" << endl;
             for(auto node: selectedNodes)

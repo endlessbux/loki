@@ -4,6 +4,11 @@ cplusplus {{
 #include "Certificate.h"
 
 #include "AsymmetricEncryptionFlag.h"
+
+
+#define CIRCUITEVIDENCE_L(msg) (CERTIFICATE_L + TIMESTAMP_L +\
+								KEY_L +\
+								sizeof(msg->getJsonCall()) * 8) 
 }}
 
 

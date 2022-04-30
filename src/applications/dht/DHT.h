@@ -110,6 +110,7 @@ private:
                                 const DhtDataEntry& entry);
     int resultValuesBitLength(DHTGetResponse* msg);
 
+public:
     uint numReplica;
     int numGetRequests;
     double ratioIdentical;

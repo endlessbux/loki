@@ -28,29 +28,58 @@ void TrafficMixer::initializeApp(int stage) {
     isOwnCertificateShared = false;
     certStorageRetries = 0;
     maxCertRetries = 5;
-    maxPoolSize = 10;
-    maxOpenCircuits = 1;
-    circuitLength = 2;
+    maxPoolSize = 50;
+    maxOpenCircuits = 5;
+    circuitLength = 3;
+    maxRequestRetries = 3;
+    timeoutLimit = SimTime::parse("10s");
 
     isCircuitBuilding = false;
 
 
-    // statistics
-    numSent = 0;
-    numRelayed = 0;
-    numPutCalls = 0;
-    numGetCalls = 0;
+    globalStatistics = GlobalStatisticsAccess().get();
+    numOnionSent = 0;
+    bytesOnionSent = 0;
+    numOnionReceived = 0;
+    bytesOnionReceived = 0;
+    numOnionRelayed = 0;
+    bytesOnionRelayed = 0;
+    numExitRequests = 0;
+    bytesExitRequests = 0;
+    numExitResponse = 0;
+    bytesExitResponse = 0;
+    numTargetSent = 0;
+    bytesTargetSent = 0;
+    bytesTargetReceived = 0;
+    numTargetSuccess = 0;
+    numTargetFailure = 0;
+    numBuildCircuitSent = 0;
+    bytesBuildCircuitSent = 0;
+    numBuildCircuitReceived = 0;
+    bytesBuildCircuitReceived = 0;
+    numCreateSuccess = 0;
+    numCreateFailure = 0;
+    numExtendSuccess = 0;
+    numExtendFailure = 0;
 
-    WATCH(numSent);
-    WATCH(numRelayed);
-    WATCH(numPutCalls);
-    WATCH(numGetCalls);
     WATCH(isOwnCertificateShared);
     WATCH(maxPoolSize);
     WATCH_SET(addressPool);
     WATCH_MAP(relayPool);
     WATCH_MAP(ownCircuits);
     WATCH_PTRMAP(extCircuits);
+
+    WATCH(numOnionRelayed);
+    WATCH(numExitRequests);
+    WATCH(numTargetSent);
+    WATCH(bytesTargetSent);
+    WATCH(bytesTargetReceived);
+    WATCH(numTargetSuccess);
+    WATCH(numTargetFailure);
+    WATCH(numCreateSuccess);
+    WATCH(numCreateFailure);
+    WATCH(numExtendSuccess);
+    WATCH(numExtendFailure);
 
     state = INIT;
     applicationPort = 31415;
@@ -65,12 +94,124 @@ void TrafficMixer::initializeApp(int stage) {
     scheduleAt(simTime() + SimTime::parse("60s"), trafficReportTimer);
 
     bindToPort(applicationPort);
+
+    relayPoolSize.setName("TrafficMixer: Relay pool size");
+    onionsRelayed.setName("TrafficMixer: Relayed onions");
+    circuitBuildingTime.setName("TrafficMixer: Circuit building time");
+    requestLatencies.setName("TrafficMixer: Request latencies");
+    ownCircuitsLengths.setName("TrafficMixer: Circuits lengths");
 }
 
 
 void TrafficMixer::finishApp() {
     changeState(SHUTDOWN);
     releaseTrafficHistory();
+
+    simtime_t time = globalStatistics->calcMeasuredLifetime(creationTime);
+    if (time < GlobalStatistics::MIN_MEASURED) return;
+
+    globalStatistics->recordOutVector(
+            "TrafficMixer: Measured time",
+            time.dbl());
+
+    // get data storage and save amount of stored bytes and records
+    DHTDataStorage* dataStorage = check_and_cast<DHTDataStorage*>
+            (getParentModule()->getParentModule()->getSubmodule("tier1")
+             ->getSubmodule("dhtDataStorage"));
+    DhtDumpVector localDht = *dataStorage->dumpDht();
+
+    int numStoredRecords = (int)localDht.size();
+    int numBitsStored = 0;
+    for(int i = 0; i < localDht.size(); i++) {
+        DhtDumpEntry entry = localDht[i];
+        numBitsStored += (int)entry.getKey().getLength() +
+                         (int)entry.getValue().size() * 8;
+    }
+    int numBytesStored = (numBitsStored / 8) + (numBitsStored % 8 != 0);
+
+    globalStatistics->recordOutVector("DHTDataStorage: Stored entries",
+                                      numStoredRecords);
+    globalStatistics->recordOutVector("DHTDataStorage: Stored bytes",
+                                      numBytesStored);
+    globalStatistics->recordOutVector("TrafficMixer: Own circuits",
+                                      ownCircuits.size());
+    map<OverlayKey, CircuitManager>::iterator it;
+    for(it = ownCircuits.begin(); it != ownCircuits.end(); it++) {
+        ownCircuitsLengths.record(it->second.circuitOrder.size());
+    }
+
+    globalStatistics->recordOutVector("TrafficMixer: External circuits",
+                                      extCircuits.size());
+    globalStatistics->recordOutVector("TrafficMixer: Sent target request",
+                                      numTargetSent);
+    globalStatistics->recordOutVector("TrafficMixer: Sent target success",
+                                      numTargetSuccess);
+    globalStatistics->recordOutVector("TrafficMixer: Sent target failure",
+                                      numTargetFailure);
+    globalStatistics->recordOutVector("TrafficMixer: Bytes target sent",
+                                      bytesTargetSent);
+    globalStatistics->recordOutVector("TrafficMixer: Bytes target received",
+                                      bytesTargetReceived);
+    globalStatistics->recordOutVector("TrafficMixer: Exit sent",
+                                      numExitRequests);
+    globalStatistics->recordOutVector("TrafficMixer: Exit sent bytes",
+                                      bytesExitRequests);
+    globalStatistics->recordOutVector("TrafficMixer: Exit received",
+                                      numExitResponse);
+    globalStatistics->recordOutVector("TrafficMixer: Exit received bytes",
+                                      bytesExitResponse);
+    globalStatistics->recordOutVector("TrafficMixer: Onion relayed",
+                                      numOnionRelayed);
+    globalStatistics->recordOutVector("TrafficMixer: Onion bytes relayed",
+                                      bytesOnionRelayed);
+    globalStatistics->recordOutVector("TrafficMixer: Build circuit sent",
+                                      numBuildCircuitSent);
+    globalStatistics->recordOutVector("TrafficMixer: Build circuit bytes sent",
+                                      bytesBuildCircuitSent);
+    globalStatistics->recordOutVector("TrafficMixer: Build circuit received",
+                                      numBuildCircuitReceived);
+    globalStatistics->recordOutVector("TrafficMixer: Build circuit bytes received",
+                                      bytesBuildCircuitReceived);
+    globalStatistics->recordOutVector("TrafficMixer: Create success",
+                                      numCreateSuccess);
+    globalStatistics->recordOutVector("TrafficMixer: Create failure",
+                                      numCreateFailure);
+    globalStatistics->recordOutVector("TrafficMixer: Extend success",
+                                      numExtendSuccess);
+    globalStatistics->recordOutVector("TrafficMixer: Extend failure",
+                                      numExtendFailure);
+    globalStatistics->recordOutVector("TrafficMixer: Onion received",
+                                      numOnionReceived);
+    globalStatistics->recordOutVector("TrafficMixer: Onion bytes received",
+                                      bytesOnionReceived);
+    globalStatistics->recordOutVector("TrafficMixer: Onion sent",
+                                      numOnionSent);
+    globalStatistics->recordOutVector("TrafficMixer: Onion bytes sent",
+                                      numOnionReceived);
+
+    DHT* dht = check_and_cast<DHT*>(
+            getParentModule()->getParentModule()->getSubmodule("tier1")
+            ->getSubmodule("dht"));
+
+    globalStatistics->recordOutVector(
+            "DHT: Sent total messages",
+            dht->maintenanceMessages + dht->normalMessages);
+    globalStatistics->recordOutVector(
+            "DHT: Sent total bytes",
+            dht->numBytesMaintenance + dht->numBytesNormal);
+
+    globalStatistics->recordOutVector(
+            "DHT: Sent maintenance messages",
+            dht->maintenanceMessages);
+    globalStatistics->recordOutVector(
+            "DHT: Sent normal messages",
+            dht->normalMessages);
+    globalStatistics->recordOutVector(
+            "DHT: Sent maintenance bytes",
+            dht->numBytesMaintenance);
+    globalStatistics->recordOutVector(
+            "DHT: Sent normal bytes",
+            dht->numBytesNormal);
 }
 
 
@@ -84,6 +225,19 @@ void TrafficMixer::handleTimerEvent(cMessage* msg) {
         releaseTrafficHistory();
     } else if(msg == peerLookupTimer) {
         getRandomPeerCertificate();
+    } else if(requestsTimeoutTimers.find(msg) != requestsTimeoutTimers.end()) {
+        handleRequestTimeout(msg);
+    }
+}
+
+
+void TrafficMixer::handleRequestTimeout(cMessage* msg) {
+    requestsTimeoutTimers.erase(msg);
+    if(pendingOnionRequestsTimes.find(msg->getKind()) !=
+       pendingOnionRequestsTimes.end()) {
+        pendingOnionRequestsTimes.erase(msg->getKind());
+        pendingOnionRequestsCircuits.erase(msg->getKind());
+        RECORD_STATS(numTargetFailure++);
     }
 }
 
@@ -91,6 +245,7 @@ void TrafficMixer::handleTimerEvent(cMessage* msg) {
 void TrafficMixer::sendRequestToTarget() {
     printLog("sendRequestToTarget");
     if(ownCircuits.size() == 0) {
+        EV << "    The bootstrap process hasn't finished; rescheduling..." << endl;
         cancelEvent(requestTimer);
         scheduleAt(simTime() + SimTime(intuniform(5, 15) * 60, SIMTIME_S), requestTimer);
         return;
@@ -98,10 +253,22 @@ void TrafficMixer::sendRequestToTarget() {
 
     UDPCall* request = new UDPCall();
     request->setTargetAddress(TargetServer::address);
+    request->setBitLength(UDPCALL_L(request));
     int randInt = intuniform(0, ownCircuits.size() - 1);
     map<OverlayKey, CircuitManager>::iterator it = ownCircuits.begin();
     advance(it, randInt);
+
+    int nonce = simTime().inUnit(SIMTIME_MS);
+    request->setInternalID(nonce);
+    pendingOnionRequestsTimes[nonce] = simTime();
+    pendingOnionRequestsCircuits[nonce] = it->first;
     it->second.sendRequest(request);
+
+    cMessage* timeoutTimer = new cMessage("Request Timeout", nonce);
+    scheduleAt(simTime() + timeoutLimit, timeoutTimer);
+    requestsTimeoutTimers.insert(timeoutTimer);
+    RECORD_STATS(numTargetSent++);
+    RECORD_STATS(bytesTargetSent += request->getByteLength());
 }
 
 
@@ -171,7 +338,7 @@ void TrafficMixer::changeState(int toState) {
     case READY:
         // gather relays information
         // build and maintain circuits
-
+        overlayReadyTime = simTime();
         scheduleAt(simTime(), buildCircuitTimer);
         break;
     case SHUTDOWN:
@@ -209,6 +376,20 @@ void TrafficMixer::sendExitRequest(OverlayKey circuitID, UDPCall* udpCall) {
 
 void TrafficMixer::internalHandleRpcMessage(BaseRpcMessage* msg) {
     printLog("internalHandleRpcMessage");
+
+    BaseResponseMessage* responseMsg = dynamic_cast<BaseResponseMessage*>(msg);
+    if(responseMsg != 0) {
+        StoredCall retrievedCall = getCallFromResponse(responseMsg);
+        if(get<0>(retrievedCall) != UNDEFINED) {
+            internalHandleResponseMessage(responseMsg, retrievedCall);
+            return;
+        }
+    }
+    if(!dynamic_cast<StorePeerHandleCall*>(msg)) {
+        // message came from another node
+        RECORD_STATS(numUdpReceived++; bytesUdpReceived += msg->getByteLength());
+    }
+
 
     OnionMessage* onionMsg = dynamic_cast<OnionMessage*>(msg);
     if(onionMsg) {
@@ -257,6 +438,7 @@ void TrafficMixer::internalHandleRpcMessage(BaseRpcMessage* msg) {
         } else {
             EV << "    Node state != READY; aborting..." << endl;
         }
+        delete msg;
         return;
     }
     RPC_ON_RESPONSE(NotifyCircuit) {
@@ -270,15 +452,6 @@ void TrafficMixer::internalHandleRpcMessage(BaseRpcMessage* msg) {
     RPC_DELEGATE(ExtendCircuit, handleExtendCircuitCall)
     RPC_DELEGATE(GetEvidence, handleGetEvidenceCall);
     RPC_SWITCH_END( )
-
-    if(!rpcHandled) {
-        BaseResponseMessage* responseMsg = dynamic_cast<BaseResponseMessage*>(msg);
-        if(responseMsg != 0) {
-            StoredCall retrievedCall = getCallFromResponse(responseMsg);
-            internalHandleResponseMessage(responseMsg, retrievedCall);
-            return;
-        }
-    }
 }
 
 
@@ -343,6 +516,7 @@ void TrafficMixer::handleReadyMessage(CompReadyMessage* msg) {
         EV << "    Overlay is ready; setting overlay key and storing certificate..." << endl;
         OverlayKey ownKey = overlay->getThisNode().getKey();
         thisNode.setKey(ownKey);
+        thisNode.setPort(applicationPort);
         storeOwnCertificate();
     } else {
         EV << "    Comp: " << msg->getComp() << endl;
@@ -467,11 +641,15 @@ void TrafficMixer::handleGetCertificateResponse(GetCertificateResponse* msg, Get
     } else {
         EV << "    Certificate is undefined; aborting..." << endl;
     }
+    delete msg;
+    delete call;
 }
 
 
 void TrafficMixer::handlePutEvidenceResponse(PutEvidenceResponse* msg, PutEvidenceCall* call) {
     printLog("handlePutEvidenceResponse");
+    delete msg;
+    delete call;
 }
 
 
@@ -514,6 +692,10 @@ void TrafficMixer::handleCreateCircuitCall(CreateCircuitCall* msg) {
     EV << "    Storing CircuitID: " << circuitID.toString() << endl;
     extCircuits[circuitID] = relay;
 
+    RECORD_STATS(numBuildCircuitReceived++;
+                 bytesBuildCircuitReceived += msg->getByteLength());
+
+
     StorePeerHandleCall* msgToTier3 = new StorePeerHandleCall();
     msgToTier3->setHandle(msg->getSrcNode());
     msgToTier3->setCert(msg->getCreatorCert());
@@ -526,6 +708,8 @@ void TrafficMixer::handleExtendCircuitCall(ExtendCircuitCall* msg) {
     NodeHandle srcNode = msg->getSrcNode();
     Certificate prevNodeCert = msg->getPrevNodeCert();
 
+    RECORD_STATS(numBuildCircuitReceived++;
+                 bytesBuildCircuitReceived += msg->getByteLength());
 
     string privateKey = getOwnCertificate().getKeySet().getPrivateKey();
     EV << "    Generating relay information..." << endl;
@@ -542,6 +726,8 @@ void TrafficMixer::handleExtendCircuitCall(ExtendCircuitCall* msg) {
 }
 
 void TrafficMixer::handleOnionMessage(OnionMessage* msg) {
+    RECORD_STATS(numOnionReceived++;
+                 bytesOnionReceived += msg->getByteLength());
     printLog("handleOnionMessage");
     OverlayKey circuitID = msg->getCircuitID();
     if(ownCircuits.find(circuitID) != ownCircuits.end()) {
@@ -599,9 +785,13 @@ void TrafficMixer::handleNotifyCircuitResponse(NotifyCircuitResponse* msg) {
     OverlayKey circuitID = msg->getPrevCircuitID();
     assert(extCircuits.find(circuitID) != extCircuits.end());
 
+    RECORD_STATS(numBuildCircuitReceived++;
+                 bytesBuildCircuitReceived += msg->getByteLength());
+
     CircuitRelay* relay = extCircuits[circuitID];
     relay->handleNotifyCircuitResponse(msg);
     extCircuits[relay->getNextCircuitID()] = relay;
+    delete msg;
 }
 
 void TrafficMixer::handleKeepAliveResponse(KeepAliveResponse* msg) {
@@ -614,6 +804,16 @@ void TrafficMixer::handleOnionResponse(cPacket* msg, OverlayKey circuitID) {
     BuildCircuitResponse* bcrMsg = dynamic_cast<BuildCircuitResponse*>(msg);
     if(udpMsg) {
         EV << "    Received a response from the target server" << endl;
+        uint64_t internalID = udpMsg->getInternalID();
+        if(pendingOnionRequestsTimes.find(internalID) !=
+           pendingOnionRequestsTimes.end()) {
+            RECORD_STATS(numTargetSuccess++;
+                         bytesTargetReceived += udpMsg->getByteLength());
+            simtime_t sendTime = pendingOnionRequestsTimes[internalID];
+            simtime_t elapsedTime = simTime() - sendTime;
+            requestLatencies.record(elapsedTime);
+            pendingOnionRequestsTimes.erase(internalID);
+        }
         delete msg;
         cancelEvent(requestTimer);
         scheduleAt(simTime() + SimTime::parse("5s"), requestTimer);
@@ -628,12 +828,24 @@ void TrafficMixer::handleOnionResponse(cPacket* msg, OverlayKey circuitID) {
 
 void TrafficMixer::handleBuildCircuitResponse(BuildCircuitResponse* msg, OverlayKey circuitID) {
     printLog("handleBuildCircuitResponse");
+    bool isCreateResponse = pendingCircuit.circuitOrder.size() == 0;
+    bool isBootstrapCircuit = ownCircuits.size() == 0;
     bool isCircuitBuilt = pendingCircuit.handleBuildCircuitResponse(msg);
     if(!isCircuitBuilt) {
         EV << "    The circuit failed building; aborting..." << endl;
         stopBuildingCircuit(false);
+        if(isCreateResponse) {
+            RECORD_STATS(numCreateFailure++);
+        } else {
+            RECORD_STATS(numExtendFailure++);
+        }
         delete msg;
         return;
+    }
+    if(isCreateResponse) {
+        RECORD_STATS(numCreateSuccess++);
+    } else {
+        RECORD_STATS(numExtendSuccess++);
     }
 
     if(selectedNodes.size() > 0) {
@@ -642,8 +854,15 @@ void TrafficMixer::handleBuildCircuitResponse(BuildCircuitResponse* msg, Overlay
         scheduleAt(simTime(), buildCircuitTimer);
     } else {
         // the circuit building process was completed
-        stopBuildingCircuit();
+        if(isBootstrapCircuit) {
+            simtime_t bootstrapTime = simTime() - overlayReadyTime;
+            globalStatistics->recordHistogram("TrafficMixer: Bootstrap Time",
+                                              bootstrapTime.dbl());
+        }
+        simtime_t buildingTime = simTime() - circuitBuildingBeginTime;
+        circuitBuildingTime.record(buildingTime);
 
+        stopBuildingCircuit();
         cancelEvent(requestTimer);
         scheduleAt(simTime(), requestTimer);
     }
@@ -653,6 +872,10 @@ void TrafficMixer::handleBuildCircuitResponse(BuildCircuitResponse* msg, Overlay
 
 void TrafficMixer::handleUDPResponse(UDPResponse* msg) {
     printLog("handleTCPResponse");
+
+    RECORD_STATS(numExitResponse++;
+                 bytesExitResponse += msg->getByteLength());
+
     int nonce = msg->getNonce();
     if(pendingUDPRequests.find(nonce) == pendingUDPRequests.end()) {
         EV << "    The received nonce doesn't correspond to a pending call; "
@@ -700,6 +923,7 @@ void TrafficMixer::getRandomPeerCertificate() {
     }
 
     if(isNewHandleFound) {
+        randHandle.setPort(applicationPort);
         getCertificate(randHandle);
     }
 
@@ -790,8 +1014,6 @@ UDPResponse* TrafficMixer::buildUDPResponse() {
 
 void TrafficMixer::sendUDPPing(TransportAddress* addr) {
     printLog("sendTcpPing");
-    RECORD_STATS(numSent++);
-    RECORD_STATS(numTcpRequests++);
 
     TransportAddress remoteAddress = TransportAddress(addr->getIp(), 24000);
     UDPCall* tcpMsg = buildUDPCall();
